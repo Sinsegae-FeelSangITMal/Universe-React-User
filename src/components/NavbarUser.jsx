@@ -1,15 +1,15 @@
 export default function NavbarUser(){
-       return (
+    return (
         <header>
         {/* <!-- Header Start --> */}
-        <div className="header-area ">
-            <div className="main-header header-sticky">
-                <div className="container-fluid">
+        <div className="header-area " style={{ marginLeft: "40px", marginRight: "40px"}}>
+            <div className="main-header header-sticky" >
+                <div className="container-fluid" >
                     <div className="menu-wrapper d-flex align-items-center justify-content-between">
                         <div className="header-left d-flex align-items-center">
                             {/* <!-- Logo --> */}
                             <div className="logo">
-                                <a href="index.html"><img src="assets/img/logo/logo.png" alt=""/></a>
+                                <a href="index.html"><img src="assets/img/logo/mainLogo.png" alt=""/></a>
                             </div>
                             {/* <!-- Main-menu --> */}
                             <div className="main-menu  d-none d-lg-block">
@@ -17,8 +17,8 @@ export default function NavbarUser(){
                                     <ul id="navigation">
                                         <li><a href="index.html">Home</a></li> 
                                         <li><a href="shop.html">shop</a></li>
-                                        <li><a href="about.html">About</a></li>
-                                        <li><a href="blog.html">Blog</a>
+                                        <li><a href="about.html">Live</a></li>
+                                        <li><a href="blog.html">Contact</a>
                                             <ul className="submenu">
                                                 <li><a href="blog.html">Blog</a></li>
                                                 <li><a href="blog_details.html">Blog Details</a></li>
@@ -26,18 +26,12 @@ export default function NavbarUser(){
                                                 <li><a href="product_details.html">Product Details</a></li>
                                             </ul>
                                         </li>
-                                        <li><a href="contact.html">Contact</a></li>
                                     </ul>
                                 </nav>
                             </div>   
                         </div>
                         <div className="header-right1 d-flex align-items-center">
-                            {/* <!-- Social --> */}
-                            <div className="header-social d-none d-md-block">
-                                <a href="#"><i className="fab fa-twitter"></i></a>
-                                <a href="https://bit.ly/sai4ull"><i className="fab fa-facebook-f"></i></a>
-                                <a href="#"><i className="fab fa-pinterest-p"></i></a>
-                            </div>
+                    
                             {/* <!-- Search Box --> */}
                             <div className="search d-none d-md-block">
                                 <ul className="d-flex align-items-center">
@@ -54,6 +48,9 @@ export default function NavbarUser(){
                                     </li>
                                 </ul>
                             </div>
+
+                            <div className="card-stor mint">MyPage</div>
+                            <div className="card-stor purple">Logout</div>
                         </div>
                         {/* <!-- Mobile Menu --> */}
                         <div className="col-12">

@@ -1,0 +1,131 @@
+.custom-background {
+    background-color: #F7F8FA;
+}
+
+.custom-box {
+    background-color: #fff;
+    box-shadow: 0 0 10px 3px rgba(108, 98, 98, 0.1);
+    border-radius: 15px;
+    padding: 30px 30px;
+    margin-bottom: 20px;
+}
+
+.custom-box h3{
+    font-weight: 600;
+}
+
+.form-select.order {
+    background-color: #f9f9ff;
+    color: #373737;
+    padding-left: 16px;
+    border: solid #c3c3c3 1px;
+    border-radius: 5px;
+    width: 70px;
+    height: 30px;
+}
+
+.genric-btn.card {
+    width: 150px;
+}
+
+.genric-btn.primary.card {
+    background-color: #B084DC;
+    border: #B084DC 1px solid;
+    color: #f9f9ff;
+}
+
+.genric-btn.primary-border.card {
+    background-color: #f9f9ff;
+    border: #B084DC 1px solid;
+    color: #373737;
+}
+
+.genric-btn.card.select {
+    width: 80px;
+    height: 30px;
+    line-height: 30px;
+    padding: 0;
+    font-size: 12px;
+    margin-right: 10px;
+    border-radius: 20px;
+}
+
+.genric-btn.card.delete {
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    padding: 0;
+    color: #9d9d9d;
+    border: #c3c3c3 1px solid;
+    margin-left: 20px;
+    margin-right: 50px;
+}
+
+.genric-btn.pay {
+    background-color: #04CBD5;
+}
+
+.genric-btn.pay:hover {
+    background-color: #04CBD5;
+    border: #04CBD5 1px solid;
+    color: #373737;
+}
+
+.primary-checkbox.cart {
+    border: 1px solid #c3c3c3;
+    display: flex;
+    align-items: center;
+    margin-left: 10px;
+}
+
+.cart-custom.one {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    min-width: 200px;
+}
+
+.cart-custom.two {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+/* 하단 고정 결제 바 */
+.cart-footer-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;            /* 배경 흰색 */
+  border-top: 1px solid #ddd;  /* 위쪽 경계선 */
+  padding: 15px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  z-index: 1000;               /* 다른 요소보다 위 */
+}
+
+/* 본문이 바와 겹치지 않게 하단 여백 */
+.custom-background {
+  padding-bottom: 80px; /* footer bar 높이만큼 */
+}
+
+
+.cart-custom.pdimg {
+    width: 80px;
+    height: 80px;
+    margin-left: 15px;
+    margin-right: 15px
+}
+
+.cart-custom.ckbox {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+}

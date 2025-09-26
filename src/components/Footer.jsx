@@ -6,76 +6,80 @@ export default function Footer(){
         <div className="container-fluid ">
             <div className="row d-flex justify-content-between">
                 <div className="col-xl-3 col-lg-3 col-md-8 col-sm-8">
-                 <div className="single-footer-caption mb-50">
-                   <div className="single-footer-caption mb-30">
-                      {/* <!-- logo --> */}
-                      <div className="footer-logo mb-35">
-                       <a href="index.html"><img src="assets/img/logo/logo2_footer.png" alt=""/></a>
-                   </div>
-                   <div className="footer-tittle">
-                       <div className="footer-pera">
-                           <p>Suspendisse varius enim in eros elementum tristique. Duis cursus, mi quis viverra ornare, eros dolor interdum nulla.</p>
-                       </div>
-                   </div>
-                   {/* <!-- social --> */}
-                   <div className="footer-social">
-                    <a href="#"><i className="fab fa-twitter"></i></a>
-                    <a href="https://bit.ly/sai4ull"><i className="fab fa-facebook-f"></i></a>
-                    <a href="#"><i className="fab fa-pinterest-p"></i></a>
+                    <div className="single-footer-caption mb-50">
+                        <div className="single-footer-caption mb-30">
+                            {/* <!-- logo --> */}
+                            <div className="footer-logo mb-35">
+                            <a href="index.html"><img src="assets/img/logo/footLogo.png" alt="" style={{width: "150px"}}/></a>
+                        </div>
+                        <div className="footer-tittle">
+                            <div className="footer-pera">
+                                <p>팬들과 아티스트를 잇는 라이브 커머스형 아이돌 MD 플랫폼 (Live commerce-style idol MD platform connecting fans and artists)</p>
+                            </div>
+                        </div>
+                        {/* <!-- social --> */}
+                        <div className="footer-social">
+                            <a href="#"><i className="fab fa-twitter"></i></a>
+                            <a href="https://bit.ly/sai4ull"><i className="fab fa-facebook-f"></i></a>
+                            <a href="#"><i className="fab fa-pinterest-p"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
+                <div className="single-footer-caption mb-50">
+                    <div className="footer-tittle">
+                        <h4>All Day Commit</h4>
+                        <ul>
+                            <li><a href="#">Minji Kim</a></li>
+                            <li><a href="#">Jungmin Mun</a></li>
+                            <li><a href="#">Seungyeon Yang</a></li>
+                            <li><a href="#">Hyunjik Yang</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div className="col-xl-1 col-lg-2 col-md-4 col-sm-4">
+                <div className="single-footer-caption mb-50">
+                    <div className="footer-tittle">
+                        <h4>Species</h4>
+                        <ul>
+                            <li><a href="#">마라</a></li>
+                            <li><a href="#">개</a></li>
+                            <li><a href="#">사람</a></li>
+                            <li><a href="#">음식</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div className="col-xl-3 col-lg-2 col-md-4 col-sm-4">
+                <div className="single-footer-caption mb-50">
+                    <div className="footer-tittle">
+                        <h4>@GitHub</h4>
+                        <ul>
+                            <li><a href="#">https://github.com/minStackRoom</a></li>
+                            <li><a href="#">https://github.com/munjungmin</a></li>
+                            <li><a href="#">https://github.com/eyoreee</a></li>
+                            <li><a href="#">https://github.com/JiksGit</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div className="col-xl-3 col-lg-2 col-md-4 col-sm-4">
+                <div className="single-footer-caption mb-50">
+                    <div className="footer-tittle">
+                        <h4>Team Project</h4>
+                        <ul>
+                            <li><a href="https://github.com/Sinsegae-FeelSangITMal">@Team GitHub</a></li>
+                            <li><a href="https://github.com/Sinsegae-FeelSangITMal/OliveMain">Team Project #1 Oliveyoung</a></li>
+                            <li><a href="https://github.com/Sinsegae-FeelSangITMal/HotSource">Team Project #2 HotSource</a></li>
+                            <li><a href="https://github.com/Sinsegae-FeelSangITMal/Universe">Team Project #3 Universe</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
-        <div className="single-footer-caption mb-50">
-            <div className="footer-tittle">
-                <h4>Quick links</h4>
-                <ul>
-                    <li><a href="#">Image Licensin</a></li>
-                    <li><a href="#">Style Guide</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
-        <div className="single-footer-caption mb-50">
-            <div className="footer-tittle">
-                <h4>Shop Category</h4>
-                <ul>
-                    <li><a href="#">Image Licensin</a></li>
-                    <li><a href="#">Style Guide</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
-        <div className="single-footer-caption mb-50">
-            <div className="footer-tittle">
-                <h4>Pertners</h4>
-                <ul>
-                    <li><a href="#">Image Licensin</a></li>
-                    <li><a href="#">Style Guide</a></li>
-                    <li><a href="#">Privacy Policy</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    <div className="col-xl-2 col-lg-3 col-md-4 col-sm-4">
-        <div className="single-footer-caption mb-50">
-            <div className="footer-tittle">
-                <h4>Get in touch</h4>
-                <ul>
-                    <li><a href="#">(89) 982-278 356</a></li>
-                    <li><a href="#">demo@colorlib.com</a></li>
-                    <li><a href="#">67/A, Colorlib, Green road, NYC</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
 </div>
 {/* <!-- footer-bottom area --> */}
 <div className="footer-bottom-area">
