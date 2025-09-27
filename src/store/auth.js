@@ -1,0 +1,17 @@
+//전역 상태 관리 - 로그인 관련
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+export const useAuthStore = create(
+    persist(
+        (set) => ({
+            accessToken: null,
+            isLogin: false,
+            login: (token) => set({ accessToken: token, isLogin: true}),
+            logout: () => set({ accessToken: null, isLogin: false }),
+        }),
+        {
+            name: "auth-storage"
+        }
+    )
+);
