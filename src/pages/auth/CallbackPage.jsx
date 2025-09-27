@@ -28,6 +28,6 @@ export default function CallbackPage(){
             navigate("/main");  // 메인 페이지로 이동
         }
 
-    }, [navigate, setIsLogin]);  //함수 참조가 바뀌면 effect를 다시 실행, 훅에서 받아온 값들은 다 넣는 것을 권장 
+    }, [navigate, login]);  //함수 참조가 바뀌면 effect를 다시 실행, 훅에서 받아온 값들은 다 넣는 것을 권장 
 
 }
