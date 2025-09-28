@@ -1,6 +1,3 @@
-import NavbarGuest from "./components/NavbarGuest";
-import NavbarUser from "./components/NavbarUser";
-import Footer from "./components/Footer";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainPage from "./pages/main/MainPage"; 
 import OrderPage from "./pages/order/OrderPage";
@@ -9,6 +6,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import CallbackPage from "./pages/auth/CallbackPage";
 import WithoutLayout from "./layouts/WithoutLayout";
 import WithLayout from "./layouts/WithLayout";
+import ProtectedRoute from "./components/routes/ProtectedRoute";
 
 function App() {
 
@@ -24,8 +22,20 @@ function App() {
         {/* Navbar 있는 그룹 */}
         <Route element={<WithLayout />}>
           <Route path="/main" element={<MainPage />} />
-          <Route path="/order" element={<OrderPage />} />
-          <Route path="/cart" element={<CartPage />} />
+
+          {/* 로그인 필요한 페이지 */}
+          <Route path="/order" element={
+            <ProtectedRoute>
+              <OrderPage />
+            </ProtectedRoute>
+            } 
+          />
+          <Route path="/cart" element={
+              <ProtectedRoute>
+                <CartPage />
+              </ProtectedRoute>
+            } 
+          />
         </Route>
       </Routes>
     </BrowserRouter>
