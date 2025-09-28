@@ -1,4 +1,23 @@
+import { useNavigate } from "react-router-dom"
+import api from "../api/api"
+import { useAuthStore } from "../store/auth"
+
 export default function NavbarUser(){
+    const navigate = useNavigate();
+    const logoutAction = useAuthStore((state) => state.logout);
+
+    const logout = async () => {
+        try{
+            const res = await api.post("/auth/logout")
+            
+            logoutAction();
+            navigate("/main");
+            
+        } catch(error){
+            console.log("로그아웃 실패:", error);
+        }
+    }
+
     return (
         <header>
         {/* <!-- Header Start --> */}
@@ -50,7 +69,7 @@ export default function NavbarUser(){
                             </div>
 
                             <div className="card-stor mint">MyPage</div>
-                            <div className="card-stor purple">Logout</div>
+                            <div className="card-stor purple" onClick={logout}>Logout</div>
                         </div>
                         {/* <!-- Mobile Menu --> */}
                         <div className="col-12">
