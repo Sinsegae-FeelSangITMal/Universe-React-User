@@ -9,7 +9,7 @@ export const useAuthStore = create(
             isLogin: false,
             user: null,
             login: (token) => set({ accessToken: token, isLogin: true}),
-            logout: () => set({ accessToken: null, isLogin: false }),
+            logout: () => set({ accessToken: null, isLogin: false, user: null }),
             setUser: (user) => set({ user }), 
         }),
         {

@@ -32,14 +32,6 @@ export default function CallbackPage(){
                 } catch(err){
                     console.log("api(/api/user/me) 호출 실패");
                 }
-            
-
-                // 사용자 정보 API 호출해서 상태 갱신 가능
-                // fetch("/api/me", { headers: { Authorization: `Bearer ${token}`}})
-                //   .then(res => res.json())
-                //   .then(data => setUser(data));
-
-                
 
                 navigate("/main");  // 메인 페이지로 이동
             }

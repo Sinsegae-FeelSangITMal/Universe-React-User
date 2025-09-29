@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { publicApi } from "../../api/api";
+import { api, publicApi } from "../../api/api";
 import { useAuthStore } from "../../store/auth";
 
 export default function OauthInfoPage() {
 
     
     const navigate = useNavigate();
-    const login = useAuthStore((state) => state.login);
+    const { login, setUser } = useAuthStore();
     const location = useLocation();
     const params = new URLSearchParams(location.search);
     const provider = params.get("provider");
@@ -25,9 +25,26 @@ export default function OauthInfoPage() {
                 nickname
             });
 
-            const accessToken = res.data.data.accessToken;
+            const token = res.data.data.accessToken;
 
-            login(accessToken);
+            if(token){
+                login(token);  
+                console.log("ggggg");
+            
+                try{
+                    // 인증 성공한 유저의 정보를 가져와서 전역으로 저장 
+                    const res = await api.get("/user/me");
+                    const user = res.data.data;
+                    setUser(user);
+                    console.log(user);
+           
+                } catch(err){
+                    console.log("api(/api/user/me) 호출 실패");
+                }
+
+                navigate("/main");  // 메인 페이지로 이동
+            }
+
             navigate("/main");
             
 
