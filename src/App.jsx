@@ -1,34 +1,43 @@
-import NavbarGuest from "./components/NavbarGuest";
-import NavbarUser from "./components/NavbarUser";
-import Footer from "./components/Footer";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState } from "react";
 import MainPage from "./pages/main/MainPage"; 
 import OrderPage from "./pages/order/OrderPage";
 import CartPage from "./pages/order/CartPage";
+import LoginPage from "./pages/auth/LoginPage";
+import CallbackPage from "./pages/auth/CallbackPage";
+import WithoutLayout from "./layouts/WithoutLayout";
+import WithLayout from "./layouts/WithLayout";
+import ProtectedRoute from "./components/routes/ProtectedRoute";
 
 function App() {
-  // 로그인 여부 (예시: 실제로는 context, recoil, redux, localStorage, cookie 등으로 관리)
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
 
   return (
     <BrowserRouter>
-      {isLoggedIn ? <NavbarUser /> : <NavbarGuest />}
-
       <Routes>
-        {/* 메인 페이지 */}
-        <Route path="/main" element={<MainPage />} />
+        {/* Navbar 없는 그룹 */}
+        <Route element={<WithoutLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/callback" element={<CallbackPage />} />
+        </Route>
 
-        {/* shop 페이지 */}
+        {/* Navbar 있는 그룹 */}
+        <Route element={<WithLayout />}>
+          <Route path="/main" element={<MainPage />} />
 
-        {/* 주문 페이지 */}
-        <Route path="/order" element={<OrderPage />} />
-
-        {/* 장바구니 페이지 */}
-        <Route path="/cart" element={<CartPage />} />
+          {/* 로그인 필요한 페이지 */}
+          <Route path="/order" element={
+            <ProtectedRoute>
+              <OrderPage />
+            </ProtectedRoute>
+            } 
+          />
+          <Route path="/cart" element={
+              <ProtectedRoute>
+                <CartPage />
+              </ProtectedRoute>
+            } 
+          />
+        </Route>
       </Routes>
-
-      <Footer />
     </BrowserRouter>
   );
 }
