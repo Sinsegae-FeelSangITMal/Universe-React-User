@@ -8,7 +8,7 @@ export default function NavbarUser(){
 
     const logout = async () => {
         try{
-            const res = await api.post("/auth/logout", {}, { withCredentials: true });
+            const res = await api.post("/auth/logout", {}, { withCredentials: true });  // 쿠키는 보내야되니께 ㅋ 
             
             logoutAction();
             navigate("/main");
