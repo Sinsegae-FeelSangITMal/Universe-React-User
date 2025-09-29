@@ -7,6 +7,7 @@ import CallbackPage from "./pages/auth/CallbackPage";
 import WithoutLayout from "./layouts/WithoutLayout";
 import WithLayout from "./layouts/WithLayout";
 import ProtectedRoute from "./components/routes/ProtectedRoute";
+import OauthInfoPage from "./pages/auth/OauthInfoPage";
 
 function App() {
 
@@ -15,8 +16,10 @@ function App() {
       <Routes>
         {/* Navbar 없는 그룹 */}
         <Route element={<WithoutLayout />}>
+
           <Route path="/login" element={<LoginPage />} />
           <Route path="/callback" element={<CallbackPage />} />
+          <Route path="/oauth-join" element={<OauthInfoPage />} />
         </Route>
 
         {/* Navbar 있는 그룹 */}
