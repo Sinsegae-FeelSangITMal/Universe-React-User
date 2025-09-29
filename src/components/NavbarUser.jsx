@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom"
-import api from "../api/api"
+
 import { useAuthStore } from "../store/auth"
+import { publicApi } from "../api/api";
 
 export default function NavbarUser(){
     const navigate = useNavigate();
@@ -8,7 +9,7 @@ export default function NavbarUser(){
 
     const logout = async () => {
         try{
-            const res = await api.post("/auth/logout", {}, { withCredentials: true });  // 쿠키는 보내야되니께 ㅋ 
+            const res = await publicApi.post("/auth/logout");  // 쿠키는 보내야되니께 ㅋ 
             
             logoutAction();
             navigate("/main");

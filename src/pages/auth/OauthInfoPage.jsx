@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import api from "../../api/api";
+import { publicApi } from "../../api/api";
 import { useAuthStore } from "../../store/auth";
 
 export default function OauthInfoPage() {
@@ -19,7 +19,7 @@ export default function OauthInfoPage() {
     const handleSubmit = async (e) => {
     
         try{
-            const res = await api.post("/auth/oauth2/join", {
+            const res = await publicApi.post("/auth/oauth2/join", {
                 provider, 
                 oauthId,
                 nickname
