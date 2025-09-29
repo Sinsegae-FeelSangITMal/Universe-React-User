@@ -8,7 +8,7 @@ export default function NavbarUser(){
 
     const logout = async () => {
         try{
-            const res = await api.post("/auth/logout")
+            const res = await api.post("/auth/logout", {}, { withCredentials: true });
             
             logoutAction();
             navigate("/main");
