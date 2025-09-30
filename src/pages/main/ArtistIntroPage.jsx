@@ -1,4 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { publicApi } from "../../api/api";
+import { FaTiktok, FaYoutube } from "react-icons/fa";
+import { FaGlobe, FaInstagram, FaXTwitter } from "react-icons/fa6";
 
 const groupName = "The KingDom";
 const intro = "Open the gate 타킹덤! 안녕하세요, 타킹덤입니다! <br/>환영해요, 다양한 콘텐츠를 즐겨보세요.";
@@ -11,25 +15,6 @@ const members = [
   { name: "자한", img: "/assets/img/test/jin.png" },
   { name: "자한", img: "/assets/img/test/jin.png" },
   { name: "자한", img: "/assets/img/test/jin.png" },
-    { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-    { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-
-    { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-
-    { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-
-    { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-  { name: "자한", img: "/assets/img/test/jin.png" },
-
 ];
 const lives = [
   { id: 1, title: "와!", date: "08.13 20:00", live: true, img: "/assets/img/test/jin.png" },
@@ -40,6 +25,35 @@ const lives = [
 
 
 export default function ArtistIntroPage() {
+
+    // 아티스트 조회 페이지
+    // api 1. 아티스트명, 소개
+    // api 2. 멤버들 
+    // api 3. 라이브 영상 다시보기 
+ 
+    const { artistId } = useParams();
+    const [artist, setArtist] = useState({});
+    const [members, setMembers] = useState([]);
+
+    useEffect(()=>{
+        async function fetchArtist(){
+            const res = await publicApi.get(`/ent/artists/${artistId}`);
+            console.log("/ent/artists-intro/aritstId 호출 성공");
+            setArtist(res.data);
+        }
+
+        async function fetchMembers(){
+            const res = await publicApi.get(`/ent/members?artistId=${artistId}`);
+            setMembers(res.data);   
+        }
+
+        fetchArtist();
+        fetchMembers();
+    }, [artistId]);
+
+
+
+
   return (
     <div style={{  maxWidth: 1100, margin: "0 auto", padding: "40px 0" }}>
       {/* 메인 단체사진 영역 */}
@@ -81,8 +95,8 @@ export default function ArtistIntroPage() {
             color: "#ffffffff", 
             marginBottom: 30, 
             textShadow: "0 2px 8px #0008" 
-            }}>{groupName}</h1>
-          <div style={{ 
+            }}>{artist.name}</h1>
+          <div style={{  // 소개글 
             color: "#4c4c4cff", 
             fontSize: 16, 
             maxWidth: 360, 
@@ -91,9 +105,7 @@ export default function ArtistIntroPage() {
             wordBreak: "keep-all", 
             whiteSpace: "pre-line", 
             lineHeight: 1.5 }}>
-            {intro.split("<br/>").map((line, i) => (
-              <span key={i} style={{ display: "block" }}>{line}</span>
-            ))}
+            {artist.description}
           </div>
           <button style={{ 
             marginTop: 20, 
@@ -126,7 +138,7 @@ export default function ArtistIntroPage() {
         </div>
       </div>
       {/* 라이브 영역 */}
-      <div style={{ marginBottom: 100 }}>
+      <div style={{ marginBottom: 120 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30}}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>LIVE</div>
           <button style={{ 
@@ -173,6 +185,43 @@ export default function ArtistIntroPage() {
             </div>
           ))}
         </div>
+
+      </div>
+      
+    {/* SNS + 스토어 */}
+      <div style={{ display: "flex", marginBottom: 50, flexDirection: "column", alignItems: "center", gap: 24 }}>
+        {/* SNS */}
+        <div style={{ display: "flex", gap: 24, marginBottom: 30 }}>
+          <a href={artist.youtube} target="_blank" rel="noopener noreferrer">
+            <FaYoutube size={28} color="#000000ff" />
+          </a>
+          <a href={artist.insta} target="_blank" rel="noopener noreferrer">
+            <FaInstagram size={28} color="#000000ff" />
+          </a>
+          <a href={artist.twitter} target="_blank" rel="noopener noreferrer">
+            <FaXTwitter size={28} color="#000000ff" />
+          </a>
+          <a href={artist.tiktok} target="_blank" rel="noopener noreferrer">
+            <FaTiktok size={28} color="#000000ff" />
+          </a>
+        </div>
+
+        {/* 스토어 버튼 */}
+        <a
+          href="/store"
+          style={{
+            background: "#fff",
+            color: "#000",
+            border: "2.5px solid black",
+            fontWeight: 600,
+            fontSize: 16,
+            padding: "10px 28px",
+            borderRadius: 9999,
+            textDecoration: "none",
+          }}
+        >
+          스토어 바로가기 &gt;
+        </a>
       </div>
     </div>
   );

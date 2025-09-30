@@ -26,7 +26,7 @@ function App() {
         {/* Navbar 있는 그룹 */}
         <Route element={<WithLayout />}>
           <Route path="/main" element={<MainPage />} />
-          <Route path="/artist-intro" element={<ArtistIntroPage />} />
+          <Route path="/artists-intro/:artistId" element={<ArtistIntroPage />} />
 
 
           {/* 로그인 필요한 페이지 */}
