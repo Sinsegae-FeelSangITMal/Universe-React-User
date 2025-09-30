@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { getCart, updateCart, delCart } from "../../utils/CartApi";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../store/auth";
 
 export default function CartPage() {
     const [cartItems, setCartItems] = useState([]);
     const [draftQty, setDraftQty] = useState({});       // 선택 가능한 수량
-
+    const { user } = useAuthStore(); 
+    const userId = user?.userId;
     const navigate = useNavigate();
 
-    const userId = 1;       // 임시 코드
+    console.log("user:", user);
 
     useEffect(() => { load(); }, []);
 

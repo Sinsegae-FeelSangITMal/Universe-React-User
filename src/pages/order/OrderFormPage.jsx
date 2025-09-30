@@ -2,18 +2,20 @@ import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { submitOrder } from "../../utils/OrderApi";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../../store/auth";
 
 export default function OrderSubmitPage() {
 
     const [selectedPayment, setSelectedPayment] = useState(""); // 결제수단 선택
     const location = useLocation();
     const selectedItems = location.state?.items || []; // CartPage에서 선택된 항목들
+    const { user } = useAuthStore(); 
     const navigate = useNavigate();
 
     // 주문자, 배송지, 동의 상태 관리
     const [orderer, setOrderer] = useState({
-        name: "",
-        email: ""
+        name: user.nickname,
+        email: user.email
     });
     const [receiver, setReceiver] = useState({
         name: "",
@@ -35,8 +37,10 @@ export default function OrderSubmitPage() {
     const totalQty = selectedItems
         .reduce((sum, item) => sum + item.qty, 0);
 
-    const totalShipPrice = (totalQty) => {
-        return totalQty * 3000; // 예: 개당 2500원 배송비
+    // 소속사(파트너)별 3000원씩 배송비
+    const totalShipPrice = () => {
+        const partnerSet = new Set(selectedItems.map(item => item.company || item.partnerName));
+        return partnerSet.size * 3000;
     }
 
     // 결제 버튼 클릭 시 payload 구성
@@ -44,7 +48,7 @@ export default function OrderSubmitPage() {
         if (!validate()) return; // 검증 실패 시 중단
 
         const payload = {
-            userId: 1,
+            userId: user.userId,
             orderer,
             receiver,
             paymentMethod: selectedPayment,
@@ -53,7 +57,7 @@ export default function OrderSubmitPage() {
                 qty: i.qty,
                 price: i.price
             })),
-            totalPrice: totalPrice + totalShipPrice(totalQty),
+            totalPrice: totalPrice + totalShipPrice(),
             agree
         };
 
@@ -88,6 +92,16 @@ export default function OrderSubmitPage() {
             return false;
         }
         return true;
+    };
+
+    // 전화번호 자동 포맷팅 함수
+    const formatPhoneNumber = (value)=> {
+        // 숫자만 남기기
+        const num = value.replace(/[^0-9]/g, "");
+        if (num.length < 4) return num;
+        if (num.length < 7) return num.slice(0, 3) + "-" + num.slice(3);
+        if (num.length < 11) return num.slice(0, 3) + "-" + num.slice(3, 6) + "-" + num.slice(6);
+        return num.slice(0, 3) + "-" + num.slice(3, 7) + "-" + num.slice(7, 11);
     };
 
     return (
@@ -196,7 +210,7 @@ export default function OrderSubmitPage() {
                                         <h5>전화번호</h5>
                                         <input type="tel" name="TEL2" placeholder="전화번호 입력 (숫자)" className="single-input"
                                             value={receiver.phone}
-                                            onChange={(e) => setReceiver({ ...receiver, phone: e.target.value })} />
+                                            onChange={(e) => setReceiver({ ...receiver, phone: formatPhoneNumber(e.target.value) })} />
                                     </div>
                                 </div>
                             </form>
