@@ -1,4 +1,10 @@
+import { useNavigate } from "react-router-dom"
+
+
 export default function NavbarGuest(){
+
+    const navigate = useNavigate();
+
     return (
         <header>
         {/* <!-- Header Start --> */}
@@ -24,7 +30,7 @@ export default function NavbarGuest(){
                             </div>   
                         </div>
                         <div className="header-right1 d-flex align-items-center">
-                            <div className="card-stor mint">Login</div>
+                            <div className="card-stor mint" onClick={()=> navigate("/login")}>Login</div>
                             <div className="card-stor purple">Regist</div>
                         </div>
                         {/* <!-- Mobile Menu --> */}
