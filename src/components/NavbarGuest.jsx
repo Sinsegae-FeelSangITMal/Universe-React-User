@@ -15,7 +15,7 @@ export default function NavbarGuest(){
                         <div className="header-left d-flex align-items-center">
                             {/* <!-- Logo --> */}
                             <div className="logo">
-                                <a href="index.html"><img src="assets/img/logo/mainLogo.png" alt=""/></a>
+                                <a href="index.html"><img src="/assets/img/logo/mainLogo.png" alt=""/></a>
                             </div>
                             {/* <!-- Main-menu --> */}
                             <div className="main-menu  d-none d-lg-block">
@@ -41,7 +41,7 @@ export default function NavbarGuest(){
                                     </li>
                                     <li>
                                         <div className="card-stor">
-                                            <img src="assets/img/gallery/card.svg" alt=""/>
+                                            <img src="/assets/img/gallery/card.svg" alt=""/>
                                             <span>0</span>
                                         </div>
                                     </li>

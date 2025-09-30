@@ -10,5 +10,8 @@ export default defineConfig({
       '/api':    { target: 'http://localhost:7777', changeOrigin: true },
       '/images': { target: 'http://localhost:7777', changeOrigin: true },
     },
-  }
+  },
+  define: {
+    global: 'window',
+  },
 })

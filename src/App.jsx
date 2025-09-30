@@ -7,6 +7,9 @@ import CallbackPage from "./pages/auth/CallbackPage";
 import WithoutLayout from "./layouts/WithoutLayout";
 import WithLayout from "./layouts/WithLayout";
 import ProtectedRoute from "./components/routes/ProtectedRoute";
+import ProductDetail from "./pages/product/ProductDetail";
+import ProductList from "./pages/product/ProductList";
+import LivePage from "./pages/live/LivePage";
 
 function App() {
 
@@ -23,6 +26,9 @@ function App() {
         <Route element={<WithLayout />}>
           <Route path="/main" element={<MainPage />} />
 
+          <Route path="/shop/products/:artistId" element={<ProductList />} />
+          <Route path="/shop/product/:productId" element={<ProductDetail />} />
+
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={
             <ProtectedRoute>
@@ -34,6 +40,12 @@ function App() {
               <ProtectedRoute>
                 <CartPage />
               </ProtectedRoute>
+            } 
+          />
+          <Route path="/live/:artistId" element={
+            // <ProtectedRoute>
+              <LivePage />
+            // </ProtectedRoute>
             } 
           />
         </Route>
