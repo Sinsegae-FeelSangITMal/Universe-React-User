@@ -9,7 +9,7 @@ export default function NavbarUser(){
                         <div className="header-left d-flex align-items-center">
                             {/* <!-- Logo --> */}
                             <div className="logo">
-                                <a href="/main"><img src="assets/img/logo/mainLogo.png" alt=""/></a>
+                                <a href="/main"><img src="/assets/img/logo/mainLogo.png" alt=""/></a>
                             </div>
                             {/* <!-- Main-menu --> */}
                             <div className="main-menu  d-none d-lg-block">
@@ -38,8 +38,14 @@ export default function NavbarUser(){
                                     <li>
                                         <a href="/cart">
                                             <div className="card-stor">
-                                                <img src="assets/img/gallery/card.svg"/>
-                                                <span>0</span>
+                                                <img src="/assets/img/gallery/card.svg"/>
+                                            </div>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="/membership">
+                                            <div className="card-stor yellow">
+                                                <span> Membership</span>
                                             </div>
                                         </a>
                                     </li>

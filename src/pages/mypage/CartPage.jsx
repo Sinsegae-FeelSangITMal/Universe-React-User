@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { getCart, updateCart, delCart } from "../../utils/CartApi";
+import { useNavigate } from "react-router-dom";
 
 export default function CartPage() {
     const [cartItems, setCartItems] = useState([]);
     const [draftQty, setDraftQty] = useState({});       // 선택 가능한 수량
+
+    const navigate = useNavigate();
 
     const userId = 1;       // 임시 코드
 
@@ -15,20 +18,29 @@ export default function CartPage() {
 
         // API 데이터를 프론트에서 쓰기 좋은 구조로 변환
         const converted = apiItems.map(item => ({
-            id: item.id,
+            id: item.id,                       // 장바구니 ID
+            productId: item.product.id,        // 상품 ID
             company: item.product.partnerName, // 소속사
             name: item.product.name,           // 상품명
+            desc: item.product.description,    // 상품 설명
             price: item.product.price,         // 가격
             qty: item.qty,                     // 담은 수량
             limit: item.product?.limit,        // 수량 제한
             stock: item.product.stock,         // 상품 재고
-            img: /*item.product?.mainImg ??*/ "assets/img/elements/a.jpg",  // 서버에 이미지 없으면 기본 이미지
+            img: item.product?.mainImageUrl ?? "assets/img/elements/b.jpg",  // 서버에 이미지 없으면 기본 이미지
             checked: false
         }));
 
         setCartItems(converted);
         // 선택 가능 수량 초기값 = 서버 수량
         setDraftQty(Object.fromEntries(converted.map(i => [i.id, i.qty])));
+    };
+
+    // 주문하기 클릭
+    // 체크된 항목들만 OrderPage로 이동
+    const handleOrder = () => {
+        const selectedItems = cartItems.filter(i => i.checked);
+        navigate('/order', { state: { items: selectedItems } });
     };
 
     // 전체 선택 여부
@@ -94,6 +106,7 @@ export default function CartPage() {
         .filter(item => item.checked)
         .reduce((sum, item) => sum + item.price * item.qty, 0);
 
+    // 체크된 항목 수량 합계
     const totalSelectedQty = cartItems
         .filter(i => i.checked)
         .reduce((sum, item) => sum + item.qty, 0);
@@ -179,12 +192,12 @@ export default function CartPage() {
                                                             {/* 상품 정보 */}
                                                             <div style={{ flex: 1 }}>
                                                                 <p style={{ margin: 0, fontWeight: 600 }}>{item.name}</p>
-                                                                <p style={{ margin: "5px 0" }}>프로모션 증정품: 랜덤 포토카드 1종</p>
+                                                                <p style={{ margin: "5px 0" }}>{item.desc}</p>
 
                                                                 {/* 수량 선택 + 변경 버튼 + 재고 표시 */}
                                                                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                                                                     <select
-                                                                        className="form-select order"
+                                                                        className="form-select cart"
                                                                         value={selectedQty}
                                                                         onChange={(e) =>
                                                                             setDraftQty((prev) => ({
@@ -247,6 +260,7 @@ export default function CartPage() {
                                                 type="button"
                                                 className="genric-btn primary radius pay"
                                                 disabled={cartItems.every(i => !i.checked)}
+                                                onClick={handleOrder} 
                                             >
                                                 {totalSelectedQty}개 상품 주문하기
                                             </button>

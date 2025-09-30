@@ -9,7 +9,7 @@ export default function NavbarGuest(){
                         <div className="header-left d-flex align-items-center">
                             {/* <!-- Logo --> */}
                             <div className="logo">
-                                <a href="/main"><img src="assets/img/logo/mainLogo.png" alt=""/></a>
+                                <a href="/main"><img src="/assets/img/logo/mainLogo.png" alt=""/></a>
                             </div>
                             {/* <!-- Main-menu --> */}
                             <div className="main-menu  d-none d-lg-block">
