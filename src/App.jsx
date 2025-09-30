@@ -1,7 +1,11 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import MainPage from "./pages/main/MainPage"; 
-import OrderPage from "./pages/order/OrderPage";
-import CartPage from "./pages/order/CartPage";
+import MainPage from "./pages/main/MainPage";
+import CartPage from "./pages/mypage/CartPage";
+import OrderListPage from "./pages/mypage/OrderListPage";
+import OrderDetailPage from "./pages/mypage/OrderDetailPage";
+import MembershipPage from "./pages/mypage/MembershipPage";
+import OrderFormPage from "./pages/order/OrderFormPage";
+import OrderResultPage from "./pages/order/OrderResultPage";
 import LoginPage from "./pages/auth/LoginPage";
 import CallbackPage from "./pages/auth/CallbackPage";
 import WithoutLayout from "./layouts/WithoutLayout";
@@ -29,13 +33,37 @@ function App() {
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={
             <ProtectedRoute>
-              <OrderPage />
+              <OrderFormPage />
+            </ProtectedRoute>
+            } 
+          />
+          <Route path="/order/list" element={
+            <ProtectedRoute>
+              <OrderListPage />
+            </ProtectedRoute>
+            } 
+          />
+          <Route path="/order/detail/:orderId" element={
+            <ProtectedRoute>
+              <OrderDetailPage />
+            </ProtectedRoute>
+            } 
+          />
+          <Route path="/order/paid/:orderId" element={
+            <ProtectedRoute>
+              <OrderResultPage />
             </ProtectedRoute>
             } 
           />
           <Route path="/cart" element={
               <ProtectedRoute>
                 <CartPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route path="/membership" element={
+              <ProtectedRoute>
+                <MembershipPage />
               </ProtectedRoute>
             } 
           />

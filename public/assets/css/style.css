@@ -2934,6 +2934,11 @@ hr {
     background: #B084DC !important;
 }
 
+.card-stor.yellow {
+    margin-left: 10px;
+    background: #f8ae53 !important;
+}
+
 .header-right1 .card-stor {
     background: #734ADE;
     padding: 8px 20px;
@@ -2942,9 +2947,9 @@ hr {
 }
 
 .header-right1 .card-stor img {
-    width: 16px;
+    width: 18px;
     height: 18px;
-    margin-right: 5px;
+    margin-bottom: 2px;
 }
 
 .header-right1 .card-stor span {
@@ -2952,6 +2957,13 @@ hr {
     font-size: 14px;
     top: 2px;
     font-weight: 300
+}
+
+.header-right1 .card-stor.yellow span {
+    color: #000000;
+    font-size: 16px;
+    top: 2px;
+    font-weight: 400
 }
 
 .header-right2 {
