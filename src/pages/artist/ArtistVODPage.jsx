@@ -20,6 +20,8 @@ export default function ArtistVODPage(){
 
     return (
         <div style={{  maxWidth: 1100, margin: "0 auto", padding: "40px 0" }}>
+        { vods.length > 0 ?
+            <>
             <h1 style={{  // 그룹명 
                 fontWeight: 800, 
                 fontSize: 70, 
@@ -55,6 +57,12 @@ export default function ArtistVODPage(){
                 ))}
                 </div>
             </div>
+            </>
+            : 
+            <div style={{ marginTop: 200, marginBottom: 200, textAlign: "center"}}>
+                다시보기 영상이 존재하지 않습니다.
+            </div>
+            }
       </div>
     );
 }
