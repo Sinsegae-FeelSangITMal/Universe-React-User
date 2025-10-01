@@ -2,6 +2,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+// const { user } = useAuthStore();
+/**
+  {
+       userId: 40,
+       nickname: 'import해라제발', 
+       roleName: 'USER', 
+       email: 'o1357dd@gmail.com'
+   }
+ */
+
+
 export const useAuthStore = create(
     persist(
         (set) => ({

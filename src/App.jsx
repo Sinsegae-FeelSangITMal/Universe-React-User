@@ -34,7 +34,7 @@ function App() {
             </ProtectedRoute>
             } 
           />
-          <Route path="/orders" element={ //주문 목록
+          <Route path="/order/list" element={ //주문 목록
             <ProtectedRoute>
               <OrderListPage />
             </ProtectedRoute>
