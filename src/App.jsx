@@ -13,6 +13,7 @@ import WithLayout from "./layouts/WithLayout";
 import ProtectedRoute from "./components/routes/ProtectedRoute";
 import OauthInfoPage from "./pages/auth/OauthInfoPage";
 import OrderListPage from "./pages/order/OrderListPage";
+import Viewer from "./pages/live/Viewer";
 
 function App() {
 
@@ -31,30 +32,37 @@ function App() {
         <Route element={<WithLayout />}>
           <Route path="/main" element={<MainPage />} />
 
+
+          {/* --- GEMINI-GENERATED CODE START --- */}
+          {/* This route displays the live stream viewing page. */}
+          <Route path="/view" element={<Viewer />} />
+          {/* --- GEMINI-GENERATED CODE END --- */}
+          
+
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={  //결제 전 주문 정보
             <ProtectedRoute>
               <OrderFormPage />
             </ProtectedRoute>
-            } 
+          }
           />
           <Route path="/order/list" element={
             <ProtectedRoute>
               <OrderListPage />
             </ProtectedRoute>
-            } 
+          }
           />
           <Route path="/order/detail/:orderId" element={
             <ProtectedRoute>
               <OrderDetailPage />
             </ProtectedRoute>
-            } 
+          }
           />
           <Route path="/order/paid/:orderId" element={
             <ProtectedRoute>
               <OrderResultPage />
             </ProtectedRoute>
-            } 
+          }
           />
           <Route path="/order/list" element={ //주문 목록
             <ProtectedRoute>
@@ -63,16 +71,16 @@ function App() {
             } 
           />
           <Route path="/cart" element={
-              <ProtectedRoute>
-                <CartPage />
-              </ProtectedRoute>
-            } 
+            <ProtectedRoute>
+              <CartPage />
+            </ProtectedRoute>
+          }
           />
           <Route path="/membership" element={
-              <ProtectedRoute>
-                <MembershipPage />
-              </ProtectedRoute>
-            } 
+            <ProtectedRoute>
+              <MembershipPage />
+            </ProtectedRoute>
+          }
           />
         </Route>
       </Routes>

@@ -12,6 +12,7 @@ export default function NavbarUser(){
             const res = await publicApi.post("/auth/logout");  
             
             logoutAction();
+            alert("로그아웃 되었습니다.");
             navigate("/main");
             
         } catch(error){
