@@ -30,8 +30,7 @@ export default function NavbarGuest(){
                             </div>   
                         </div>
                         <div className="header-right1 d-flex align-items-center">
-                            <div className="card-stor mint" onClick={()=> navigate("/login")}>Login</div>
-                            <div className="card-stor purple">Regist</div>
+                            <div className="card-stor mint" onClick={()=> navigate("/login")}>Login / Regist</div>
                         </div>
                         {/* <!-- Mobile Menu --> */}
                         <div className="col-12">

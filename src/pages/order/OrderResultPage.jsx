@@ -5,7 +5,7 @@ import { getOrderDetail } from "../../utils/OrderApi";
 export default function OrderResultPage() {
   const { orderId } = useParams(); // 라우터에서 전달받은 주문번호
   const [order, setOrder] = useState(null);
-  const navigate = useNavigate();  
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (orderId) {
@@ -50,7 +50,10 @@ export default function OrderResultPage() {
         </div>
 
         <div className="orderlistContent">
-          <h3 className="orderlistSubtitle">주문 상품</h3>
+          {/* 총 주문 수량 표시 */}
+          <h3 className="orderlistSubtitle">
+            주문 상품
+          </h3>
           <div>
             {order.orderProducts.map((item, idx) => (
               <div key={idx} className="orderlistItem">
@@ -69,16 +72,18 @@ export default function OrderResultPage() {
                   <div className="orderlistItemName">{item.name}</div>
 
                   {/* 멤버십일 경우 서버에서 내려준 기간 표시 */}
-                  {item.category === "멤버십" && item.membershipStartDate && item.membershipEndDate && (
-                    <div className="orderlistItemPeriod">
-                      멤버십 유효기간:{" "}
-                      {new Date(item.membershipStartDate).toLocaleDateString("ko-KR")} ~{" "}
-                      {new Date(item.membershipEndDate).toLocaleDateString("ko-KR")}
-                    </div>
-                  )}
+                  {item.category === "멤버십" &&
+                    item.membershipStartDate &&
+                    item.membershipEndDate && (
+                      <div className="orderlistItemPeriod">
+                        멤버십 유효기간:{" "}
+                        {new Date(item.membershipStartDate).toLocaleDateString("ko-KR")} ~{" "}
+                        {new Date(item.membershipEndDate).toLocaleDateString("ko-KR")}
+                      </div>
+                    )}
 
                   <div className="orderlistItemPrice">
-                    ₩ {item.price.toLocaleString()}
+                    ₩ {item.price.toLocaleString()} ({item.qty}개)
                   </div>
                 </div>
               </div>
@@ -87,8 +92,11 @@ export default function OrderResultPage() {
           <button
             className="orderlistBtn"
             onClick={() => navigate("/order/detail/" + orderId)}
-          >주문내역 확인하기</button>
+          >
+            주문내역 확인하기
+          </button>
         </div>
+
       </div>
     </main>
   );
