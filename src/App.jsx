@@ -12,6 +12,7 @@ import WithoutLayout from "./layouts/WithoutLayout";
 import WithLayout from "./layouts/WithLayout";
 import ProtectedRoute from "./components/routes/ProtectedRoute";
 import OauthInfoPage from "./pages/auth/OauthInfoPage";
+import OrderListPage from "./pages/order/OrderListPage";
 import Viewer from "./pages/live/Viewer";
 
 function App() {
@@ -39,7 +40,7 @@ function App() {
           
 
           {/* 로그인 필요한 페이지 */}
-          <Route path="/order" element={
+          <Route path="/order" element={  //결제 전 주문 정보
             <ProtectedRoute>
               <OrderFormPage />
             </ProtectedRoute>
@@ -62,6 +63,12 @@ function App() {
               <OrderResultPage />
             </ProtectedRoute>
           }
+          />
+          <Route path="/order/list" element={ //주문 목록
+            <ProtectedRoute>
+              <OrderListPage />
+            </ProtectedRoute>
+            } 
           />
           <Route path="/cart" element={
             <ProtectedRoute>
