@@ -13,7 +13,6 @@ import WithLayout from "./layouts/WithLayout";
 import ProtectedRoute from "./components/routes/ProtectedRoute";
 import OauthInfoPage from "./pages/auth/OauthInfoPage";
 import ArtistIntroPage from "./pages/main/ArtistIntroPage";
-import OrderListPage from "./pages/order/OrderListPage";
 import Viewer from "./pages/live/Viewer";
 
 function App() {
