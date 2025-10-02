@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainPage from "./pages/main/MainPage";
 import CartPage from "./pages/mypage/CartPage";
-import OrderListPage from "./pages/mypage/OrderListPage";
-import OrderDetailPage from "./pages/mypage/OrderDetailPage";
 import MembershipPage from "./pages/mypage/MembershipPage";
 import OrderFormPage from "./pages/order/OrderFormPage";
 import OrderResultPage from "./pages/order/OrderResultPage";
@@ -43,18 +41,6 @@ function App() {
           <Route path="/order" element={  //결제 전 주문 정보
             <ProtectedRoute>
               <OrderFormPage />
-            </ProtectedRoute>
-          }
-          />
-          <Route path="/order/list" element={
-            <ProtectedRoute>
-              <OrderListPage />
-            </ProtectedRoute>
-          }
-          />
-          <Route path="/order/detail/:orderId" element={
-            <ProtectedRoute>
-              <OrderDetailPage />
             </ProtectedRoute>
           }
           />

@@ -80,13 +80,58 @@
       }                                                                                                                                                                                                   
     };                                                                                                                                                                                                    
 
-    return (                                                                                                                                                                                              
-      <div>                                                                                                                                                                                               
-        <h2>라이브 시청 페이지</h2>                                                                                                                                                                       
-        <video ref={remoteVideoRef} autoPlay style={{ width: '400px', border: '1px solid black' }} />                                                                                                     
-        {!isStreamAvailable && <p>방송 시작을 기다리는 중...</p>}                                                                                                                                         
-      </div>                                                                                                                                                                                              
-    );                                                                                                                                                                                                    
+    return (
+  <div className="live-page-container">
+    {/* 상단 라이브 스트림 영역 */}
+    <div className="live-page-stream-section">
+      <div className="live-page-video-wrapper">
+        <video 
+          ref={remoteVideoRef} 
+          autoPlay 
+          className="live-page-video"
+        />
+        {!isStreamAvailable && (
+          <p className="live-page-waiting">방송 시작을 기다리는 중...</p>
+        )}
+      </div>
+
+      {/* 실시간 채팅 */}
+      <div className="live-page-chat-section">
+        <h3 className="live-page-chat-title">실시간 채팅</h3>
+        <div className="live-page-chat-messages">
+          {/* 채팅 메시지 리스트는 따로 append */}
+          <p><b>덕후:</b> 와 언니 개이뻐요 😍</p>
+          <p><b>민지:</b> 티셔츠 사이즈 궁금해요</p>
+        </div>
+        <input
+          type="text"
+          className="live-page-chat-input"
+          placeholder="메시지 보내기..."
+        />
+      </div>
+    </div>
+
+    {/* 상품 목록 */}
+    <div className="live-page-products-section">
+      <h3 className="live-page-products-title">라이브 상품 목록</h3>
+      <div className="live-page-product-list">
+        <div className="live-page-product-card">
+          <img src="product.png" alt="상품" className="live-page-product-img" />
+          <div className="live-page-product-info">
+            <p className="live-page-product-name">The 1st Mini Album</p>
+            <p className="live-page-product-price">KRW ₩39,300</p>
+            <div className="live-page-product-buttons">
+              <button className="live-page-btn-cart">장바구니</button>
+              <button className="live-page-btn-buy">주문하기</button>
+            </div>
+          </div>
+        </div>
+        {/* ...다른 상품들 반복 */}
+      </div>
+    </div>
+  </div>
+);
+                                                                                                                                                                                         
   };                                                                                                                                                                                                      
 
   export default Viewer;    
