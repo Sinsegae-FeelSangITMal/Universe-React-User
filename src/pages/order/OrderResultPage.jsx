@@ -91,7 +91,7 @@ export default function OrderResultPage() {
           </div>
           <button
             className="orderlistBtn"
-            onClick={() => navigate("/order/detail/" + orderId)}
+            onClick={() => navigate("/order/list")}
           >
             주문내역 확인하기
           </button>
