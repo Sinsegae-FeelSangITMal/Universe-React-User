@@ -15,15 +15,15 @@ export default function NavbarGuest(){
                         <div className="header-left d-flex align-items-center">
                             {/* <!-- Logo --> */}
                             <div className="logo">
-                                <a href="index.html"><img src="/assets/img/logo/mainLogo.png" alt=""/></a>
+                                <a href="/main"><img src="/assets/img/logo/mainLogo.png" alt=""/></a>
                             </div>
                             {/* <!-- Main-menu --> */}
                             <div className="main-menu  d-none d-lg-block">
                                 <nav>
                                     <ul id="navigation">
-                                        <li><a href="index.html">Home</a></li> 
-                                        <li><a href="shop.html">shop</a></li>
-                                        <li><a href="about.html">Live</a></li>
+                                        <li><a href="/main">Home</a></li> 
+                                        <li><a href="/shop">shop</a></li>
+                                        <li><a href="/live">Live</a></li>
                                         <li><a href="blog.html">Contact</a></li>
                                     </ul>
                                 </nav>

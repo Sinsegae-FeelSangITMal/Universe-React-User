@@ -31,7 +31,7 @@ export default function LoginPage() {
     return (
         <div style={{ width: 380, maxWidth: "90vw", padding: 32, border: "1px solid #eee", borderRadius: 8, boxShadow: "0 2px 8px #eee" }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                <img src="/assets/img/logo/mainLogo.png" alt="main logo" style={{ width: 120, height: 60, objectFit: "contain" }} />
+                <a href="/main"><img src="/assets/img/logo/mainLogo.png" alt="main logo" style={{ width: 120, height: 60, objectFit: "contain" }} /></a>
             </div>
             
             <h3 style={{ textAlign: "center", marginBottom: 24 }}>로그인/회원가입</h3>

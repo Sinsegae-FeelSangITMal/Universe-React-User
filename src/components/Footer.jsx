@@ -29,6 +29,17 @@ export default function Footer(){
             <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
                 <div className="single-footer-caption mb-50">
                     <div className="footer-tittle">
+                        <h4>Partner</h4>
+                        <ul>
+                            <li><a href="#">소속사 메인</a></li>
+                            <li><a href="#">입점 문의</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
+                <div className="single-footer-caption mb-50">
+                    <div className="footer-tittle">
                         <h4>All Day Commit</h4>
                         <ul>
                             <li><a href="#">Minji Kim</a></li>
@@ -52,7 +63,7 @@ export default function Footer(){
                     </div>
                 </div>
             </div>
-            <div className="col-xl-3 col-lg-2 col-md-4 col-sm-4">
+            <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
                 <div className="single-footer-caption mb-50">
                     <div className="footer-tittle">
                         <h4>@GitHub</h4>
@@ -65,7 +76,7 @@ export default function Footer(){
                     </div>
                 </div>
             </div>
-            <div className="col-xl-3 col-lg-2 col-md-4 col-sm-4">
+            <div className="col-xl-2 col-lg-2 col-md-4 col-sm-4">
                 <div className="single-footer-caption mb-50">
                     <div className="footer-tittle">
                         <h4>Team Project</h4>
