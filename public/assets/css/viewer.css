@@ -1,134 +1,310 @@
+.live-page-hr {
+  border: none;
+  border-top: 1.5px solid #e0e0e0;
+  margin: 18px 0 0 0;
+}
 /* 전체 페이지 */
 .live-page-container {
   display: flex;
   flex-direction: column;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 0 16px;
   font-family: "Segoe UI", sans-serif;
+  background: #fafbfc;
 }
 
-/* 상단 스트리밍 + 채팅 레이아웃 */
+/* 헤더 */
+.live-page-header {
+  margin: 24px 0 0 0;
+}
+.live-page-artist {
+  font-size: 25px;
+  font-weight: 700;
+  color: #5a3ec8;
+  margin-top: 10px;
+  margin-bottom: 25px;
+  letter-spacing: -0.5px;
+}
+.live-page-desc {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 35px;
+}
+
+/* 영상 + 채팅 레이아웃 */
 .live-page-stream-section {
   display: flex;
-  gap: 20px;
+  gap: 24px;
+  margin-top: 10px;
   margin-bottom: 30px;
+  align-items: flex-start;
 }
 
 /* 영상 */
 .live-page-video-wrapper {
   flex: 2;
-  position: relative;
+  min-width: 1000px;
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 563px;
+  justify-content: flex-start;
 }
 .live-page-video {
   width: 100%;
-  height: auto;
-  border-radius: 12px;
-  border: 2px solid #ccc;
-  background-color: #000;
+  aspect-ratio: 16/9;
+  min-height: 563px;
+  max-height: 563px;
+  border-radius: 16px;
+  background: #000;
+  object-fit: cover;
+  box-shadow: none;
+  display: block;
 }
 .live-page-waiting {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background: rgba(0,0,0,0.6);
+  text-align: center;
+  margin-top: -31%;
   color: #fff;
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  font-size: 18px;
+  font-weight: 500;
 }
 
-/* 채팅 영역 */
+/* 채팅 */
 .live-page-chat-section {
   flex: 1;
   display: flex;
   flex-direction: column;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 15px;
+  height: 563px;
+  min-height: 563px;
+  max-height: 563px;
+  border: 1px solid #e0e0e0;
+  border-radius: 16px;
   background: #fff;
+  box-shadow: none;
+  justify-content: flex-start;
 }
 .live-page-chat-title {
-  font-size: 1rem;
-  font-weight: bold;
-  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 12px 16px 10px 16px;
+  border-bottom: 1px solid #f2f2f2;
+  background: #fff;
 }
 .live-page-chat-messages {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid #eee;
-  padding: 10px;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  font-size: 0.9rem;
+  padding: 12px 16px 0 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  background: #fff;
+  min-height: 0;
+  max-height: 563px;
+}
+.live-page-chat-user {
+  margin-bottom: 2px;
+}
+.live-page-chat-admin {
+  margin-bottom: 2px;
+}
+.live-page-chat-sender {
+  font-weight: 600;
+  margin-right: 2px;
+}
+.live-page-chat-text {
+  word-break: break-all;
+}
+.live-page-chat-input-wrap {
+  display: flex;
+  padding: 10px 12px;
+  border-top: 1px solid #f2f2f2;
+  background: #fff;
+  align-items: center;
 }
 .live-page-chat-input {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 0.9rem;
+  flex: 1;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 14px;
+  margin-right: 8px;
+  background: rgba(3, 222, 195, 0.13);
+  color: #111;
+  border: none;
+  height: 36px;
+  box-sizing: border-box;
+}
+.live-page-chat-send {
+  background: #7c4dff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0 22px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.live-page-chat-send:hover {
+  background: #5a3ec8;
 }
 
-/* 상품 섹션 */
+/* 배너 */
+.live-page-banner {
+  background: #c8f3ef;
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  margin-top: 0;
+  margin-bottom: 32px;
+  width: 100%;
+  box-sizing: border-box;
+  color: #222;
+  font-weight: 500;
+  position: relative;
+}
+
+/* 상품 */
 .live-page-products-section {
   margin-top: 20px;
+  margin-bottom: 80px;
 }
 .live-page-products-title {
-  font-size: 1.2rem;
-  font-weight: bold;
-  margin-bottom: 15px;
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 35px;
+  color: #222;
 }
 .live-page-product-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+  width: 100%;
 }
 .live-page-product-card {
   display: flex;
   align-items: center;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 10px;
   background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  border-radius: 16px;
+  margin-bottom: 18px;
+  padding: 18px 32px;
+  border: 1px solid #e0e0e0;
+  box-shadow: none;
+  min-height: 80px;
+  width: 100%;
+  gap: 18px;
+  position: relative;
+}
+.live-page-product-card-wide {
+  gap: 18px;
 }
 .live-page-product-img {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
+  margin-right: 18px;
   border-radius: 8px;
-  margin-right: 15px;
   object-fit: cover;
+  border: 1px solid #eee;
+  background: #fafbfc;
 }
 .live-page-product-info {
-  flex: 1;
+  flex: 2;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .live-page-product-name {
-  font-weight: 600;
-  margin-bottom: 5px;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.live-page-product-option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+.live-page-product-option-label {
+  font-size: 13px;
+  color: #888;
+  margin-right: 2px;
+}
+.live-page-product-option-select {
+  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1.5px solid #00bcd4;
+  background: #fff;
+  color: #222;
+  min-width: 80px;
+  font-weight: 500;
+  appearance: none;
+}
+.live-page-product-option-select:disabled,
+.live-page-product-option-select option:disabled {
+  color: #bbb;
+  background: #fafbfc;
+}
+.live-page-product-price-col {
+  flex: 1;
+  min-width: 120px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 .live-page-product-price {
-  color: #444;
-  margin-bottom: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #222;
 }
-.live-page-product-buttons {
-  display: flex;
-  gap: 10px;
-}
-.live-page-btn-cart,
-.live-page-btn-buy {
+.live-page-product-buttons-col {
   flex: 1;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
+  min-width: 180px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  align-items: center;
 }
-.live-page-btn-cart {
-  background: #eee;
+.live-page-btn-cart.live-page-btn-outline {
+  background: #fff;
+  color: #00bcd4;
+  border: 2px solid #00bcd4;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 8px 32px;
+  border-radius: 24px;
+  transition: background 0.2s, color 0.2s;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  letter-spacing: -0.5px;
 }
-.live-page-btn-buy {
-  background: #4cafef;
+.live-page-btn-cart.live-page-btn-outline:hover {
+  background: #e0f7fa;
+}
+.live-page-btn-buy.live-page-btn-filled {
+  background: #00bcd4;
   color: #fff;
+  border: none;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 8px 32px;
+  border-radius: 24px;
+  transition: background 0.2s;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  letter-spacing: -0.5px;
 }
-.live-page-btn-buy:hover {
-  background: #379fdb;
+.live-page-btn-buy.live-page-btn-filled:hover {
+  background: #5a3ec8;
 }
