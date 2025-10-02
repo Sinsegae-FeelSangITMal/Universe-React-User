@@ -21,6 +21,7 @@
     "react-router-dom": "^7.9.1",
     "slick-carousel": "^1.8.1",
     "socket.io-client": "^4.8.1",
+    "sockjs-client": "^1.6.1",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

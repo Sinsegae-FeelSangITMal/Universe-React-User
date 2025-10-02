@@ -1,5 +1,6 @@
+// src/pages/live/LivePage.jsx
 import { useParams } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import SockJS from "sockjs-client";
 import { Client } from "@stomp/stompjs";
 
@@ -11,11 +12,10 @@ export default function LivePage() {
   const { artistId } = useParams();
   const composingRef = useRef(false);
 
-  // WebSocket 설정
-  // 프록시 덕분에 클라이언트에서 바로 '/ws'로 호출 가능
-  const WS_URL           = "/ws";         
-  const TOPIC_SUBSCRIBE  = (artistId) => `/topic/public/${artistId}`; 
-  const APP_SEND         = (artistId) => `/app/live/${artistId}`;    
+  // WebSocket 설정 (Vite proxy로 /ws → 8888)
+  const WS_URL = "/ws";
+  const TOPIC_SUBSCRIBE  = (id) => `/topic/public/${id}`;
+  const APP_SEND         = (id) => `/app/live/${id}`;
 
   // sender: 브라우저마다 고유하게 저장
   const [sender] = useState(() => {
@@ -50,6 +50,8 @@ export default function LivePage() {
 
   /** ===== WebSocket (SockJS + STOMP) ===== */
   useEffect(() => {
+    setWsStatus("CONNECTING");
+
     const sock = new SockJS(WS_URL);
     const client = new Client({
       webSocketFactory: () => sock,
@@ -59,30 +61,48 @@ export default function LivePage() {
 
     client.onConnect = () => {
       console.log("Connected to Chat Server");
-      client.subscribe(TOPIC_SUBSCRIBE(artistId), (message) => {
-        console.log("받은 메시지:", message.body);
+      setWsStatus("CONNECTED");
+
+      client.subscribe(TOPIC_SUBSCRIBE(artistId || "global"), (frame) => {
+        try {
+          const msg = JSON.parse(frame.body);
+          setMessages((prev) => [...prev, { sender: msg.sender ?? "익명", message: msg.message ?? "" }]);
+        } catch {
+          // 서버가 문자열만 보내는 경우 대비
+          setMessages((prev) => [...prev, { sender: "서버", message: frame.body }]);
+        }
       });
     };
 
-    client.activate();
-    return () => client.deactivate();
-  }, [artistId]);
+    client.onStompError = (e) => {
+      console.error("STOMP error", e);
+      setWsStatus("DISCONNECTED");
+    };
+
+    client.onWebSocketClose = () => {
+      console.warn("WS closed");
+      setWsStatus("DISCONNECTED");
+    };
 
     client.activate();
     clientRef.current = client;
 
     return () => {
-      client.deactivate();
-      clientRef.current = null;
+      try {
+        client.deactivate();
+      } finally {
+        clientRef.current = null;
+      }
     };
   }, [artistId]);
 
   const sendMessage = () => {
     const text = chatInput.trim();
     if (!text) return;
+
     const payload = {
       artistId: Number(artistId) || null,
-      sender: sender,    // 브라우저마다 다르게
+      sender: sender, // 브라우저마다 다르게
       message: text,
       timestamp: new Date().toISOString(),
     };
@@ -92,8 +112,10 @@ export default function LivePage() {
         destination: APP_SEND(artistId || "global"),
         body: JSON.stringify(payload),
       });
+      // 낙관적 업데이트를 원하면 아래 주석 해제
+      // setMessages((prev) => [...prev, { sender, message: text }]);
     }
-    setChatInput(""); // 낙관적 업데이트 제거 → 서버 echo만 표시
+    setChatInput("");
   };
 
   return (
@@ -105,24 +127,21 @@ export default function LivePage() {
             <h1 style={{ fontSize: 24, fontWeight: 800, color: "#111" }}>에스파 LIVE</h1>
             <div style={{ fontSize: 14, color: "#666" }}>
               Artist #{artistId} · WS:{" "}
-              <span style={{ fontWeight: 600, color: wsStatus === "CONNECTED" ? "#16a34a" : "#dc2626" }}>
+              <span style={{ fontWeight: 600, color: wsStatus === "CONNECTED" ? "#16a34a" : wsStatus === "CONNECTING" ? "#f59e0b" : "#dc2626" }}>
                 {wsStatus === "CONNECTED" ? "연결됨" : wsStatus === "CONNECTING" ? "연결중…" : "미연결"}
               </span>
             </div>
           </div>
         </div>
       </header>
-  
-      {/* 상단: 배너(왼쪽) + 채팅(오른쪽) */}
+
+      {/* 상단: 배너 + 채팅 */}
       <section className="py-4">
         <div className="container" style={{ maxWidth: 1140 }}>
           <div className="row g-4">
             {/* 배너 */}
             <div className="col-lg-8">
-              <div
-                className="position-relative"
-                style={{ borderRadius: 16, overflow: "hidden", background: "#eee", boxShadow: "0 4px 12px rgba(0,0,0,.08)" }}
-              >
+              <div className="position-relative" style={{ borderRadius: 16, overflow: "hidden", background: "#eee", boxShadow: "0 4px 12px rgba(0,0,0,.08)" }}>
                 <img
                   src={DUMMY_BANNER}
                   alt="에스파 위버스 라이브"
@@ -149,7 +168,7 @@ export default function LivePage() {
                 </div>
               </div>
             </div>
-  
+
             {/* 채팅 */}
             <div className="col-lg-4">
               <div className="d-flex flex-column h-100" style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, background: "#fff", boxShadow: "0 2px 6px rgba(0,0,0,.05)" }}>
@@ -191,7 +210,7 @@ export default function LivePage() {
                   })}
                 </ul>
                 <div className="d-flex gap-2 mt-3">
-                <input
+                  <input
                     type="text"
                     className="form-control"
                     placeholder="메시지 보내기…"
@@ -200,22 +219,16 @@ export default function LivePage() {
                     onCompositionStart={() => { composingRef.current = true; }}
                     onCompositionEnd={() => { composingRef.current = false; }}
                     onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                        // 1) Chrome IME 조합 중이면 무시
+                      if (e.key === "Enter") {
                         if (composingRef.current || e.nativeEvent.isComposing) return;
                         e.preventDefault();
                         sendMessage();
-                        }
+                      }
                     }}
-                    />
+                  />
                   <button
                     className="btn"
-                    style={{
-                      background: "#111827",
-                      color: "#fff",
-                      borderRadius: 8,
-                      padding: "6px 14px",
-                    }}
+                    style={{ background: "#111827", color: "#fff", borderRadius: 8, padding: "6px 14px" }}
                     onClick={sendMessage}
                   >
                     전송
@@ -226,7 +239,7 @@ export default function LivePage() {
           </div>
         </div>
       </section>
-  
+
       {/* 쿠폰 섹션 */}
       <section className="py-3">
         <div className="container" style={{ maxWidth: 1140 }}>
@@ -243,33 +256,30 @@ export default function LivePage() {
                   <div
                     className="card-stor purple"
                     style={{
-                        cursor: "pointer",
-                        minHeight: "42px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: 8,
-                        fontWeight: 600,
-                        padding: "10px 20px",
+                      cursor: "pointer",
+                      minHeight: "42px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 8,
+                      fontWeight: 600,
+                      padding: "10px 20px",
                     }}
                     onClick={() => alert("쿠폰 다운로드")}
-                    >
+                  >
                     다운로드
-                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </section>
-  
+
       {/* 상품 목록 */}
       <section className="pt-4 pb-5">
         <div className="container" style={{ maxWidth: 1140 }}>
-          <h2 className="mb-3" style={{ fontSize: 20, fontWeight: 700 }}>
-            라이브 상품 목록
-          </h2>
-  
+          <h2 className="mb-3" style={{ fontSize: 20, fontWeight: 700 }}>라이브 상품 목록</h2>
           <div className="table-responsive">
             <table className="table align-middle">
               <thead style={{ background: "#f3f4f6" }}>
@@ -292,11 +302,10 @@ export default function LivePage() {
                     </td>
                     <td className="text-end" style={{ fontWeight: 700, color: "#111" }}>{toKRW(p.price)}</td>
                     <td className="text-center">
-                    <div className="d-inline-flex gap-2">
-                        <div className="d-inline-flex gap-2">
+                      <div className="d-inline-flex gap-2">
                         <div
-                            className="card-stor mint"
-                            style={{
+                          className="card-stor mint"
+                          style={{
                             cursor: "pointer",
                             minHeight: "40px",
                             display: "flex",
@@ -307,14 +316,14 @@ export default function LivePage() {
                             borderRadius: 6,
                             padding: "8px 16px",
                             fontWeight: 600,
-                            }}
-                            onClick={() => alert("장바구니에 담기")}
+                          }}
+                          onClick={() => alert("장바구니에 담기")}
                         >
-                            장바구니
+                          장바구니
                         </div>
                         <div
-                            className="card-stor purple"
-                            style={{
+                          className="card-stor purple"
+                          style={{
                             cursor: "pointer",
                             minHeight: "40px",
                             display: "flex",
@@ -325,13 +334,12 @@ export default function LivePage() {
                             borderRadius: 6,
                             padding: "8px 16px",
                             fontWeight: 600,
-                            }}
-                            onClick={() => alert("주문하기")}
+                          }}
+                          onClick={() => alert("주문하기")}
                         >
-                            주문하기
+                          주문하기
                         </div>
-                        </div>
-                        </div>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -341,5 +349,5 @@ export default function LivePage() {
         </div>
       </section>
     </main>
-  );  
+  );
 }
