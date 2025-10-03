@@ -23,6 +23,7 @@ const Viewer = () => {
   const [chatList, setChatList] = useState(DUMMY_CHAT);
   const [chatInput, setChatInput] = useState("");
   const [subtitle, setSubtitle] = useState(null);
+  const [selectedLang, setSelectedLang] = useState("ko");
 
   const chatMessagesRef = useRef(null);
   const socketRef = useRef(null);
@@ -236,7 +237,24 @@ const Viewer = () => {
           {streamStatus === 'waiting' && <p className="live-page-waiting">방송 시작을 기다리는 중...</p>}
           {streamStatus === 'ended' && <p className="live-page-waiting">방송이 종료되었습니다.</p>}
           {/* 🔥 자막 표시 */}
-          {streamStatus === 'streaming' && <SubtitleDisplay subtitle={subtitle} />}
+          {streamStatus === "streaming" && (
+            <>
+              <SubtitleDisplay subtitle={subtitle} selectedLang={selectedLang} />
+
+              {/* 자막 언어 선택 드롭다운 */}
+              <div className="subtitle-select-wrapper">
+                <select
+                  value={selectedLang}
+                  onChange={(e) => setSelectedLang(e.target.value)}
+                >
+                  <option value="none">자막 없음</option>
+                  <option value="ko">한국어</option>
+                  <option value="en">English</option>
+                  <option value="fr">Français</option>
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="live-page-chat-section" style={{ height: '100%' }}>

@@ -1,16 +1,28 @@
-// src/components/subtitle/SubtitleDisplay.jsx
-const SubtitleDisplay = ({ subtitle }) => {
-  if (!subtitle) return null;
+export default function SubtitleDisplay({ subtitle, selectedLang }) {
+  if (!subtitle || selectedLang === "none") return null;
+
+  let text = "";
+  switch (selectedLang) {
+    case "ko":
+      text = subtitle.original || "";
+      break;
+    case "en":
+      text = subtitle.translations?.en || "";
+      break;
+    case "fr":
+      text = subtitle.translations?.fr || "";
+      break;
+    default:
+      text = subtitle.original || "";
+  }
+
+  if (!text) return null;
 
   return (
     <div className="subtitle-container">
       <div className="subtitle-overlay">
-        <div className="subtitle-line subtitle-ko">{subtitle.original}</div>
-        <div className="subtitle-line subtitle-en">{subtitle.translations?.en}</div>
-        <div className="subtitle-line subtitle-fr">{subtitle.translations?.fr}</div>
+        <span className="subtitle-line">{text}</span>
       </div>
     </div>
   );
-};
-
-export default SubtitleDisplay;
+}
