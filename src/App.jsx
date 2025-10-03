@@ -32,8 +32,8 @@ function App() {
 
 
           {/* --- GEMINI-GENERATED CODE START --- */}
-          {/* This route displays the live stream viewing page. */}
-          <Route path="/view" element={<Viewer />} />
+          {/* This route displays the live stream viewing page with a dynamic liveId. */}
+          <Route path="/view/:liveId" element={<Viewer />} />
           {/* --- GEMINI-GENERATED CODE END --- */}
           
 
