@@ -75,9 +75,9 @@ function App() {
           }
           />
           <Route path="/live/:artistId" element={
-            // <ProtectedRoute>
+            <ProtectedRoute>
               <LivePage />
-            // </ProtectedRoute>
+            </ProtectedRoute>
             } 
           />
         </Route>
