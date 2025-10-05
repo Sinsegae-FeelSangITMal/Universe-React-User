@@ -24,6 +24,7 @@ const Viewer = () => {
   const [chatInput, setChatInput] = useState("");
   const [subtitle, setSubtitle] = useState(null);
   const [selectedLang, setSelectedLang] = useState("ko");
+  const [viewerCount, setViewerCount] = useState(0);
 
   const chatMessagesRef = useRef(null);
   const socketRef = useRef(null);
@@ -62,153 +63,132 @@ const Viewer = () => {
     },
   ]);
 
-  // 채팅 자동 스크롤
-  useEffect(() => {
-    if (chatMessagesRef.current) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-    }
-  }, [chatList]);
+useEffect(() => {
+  const socket = io(SERVER_URL, {
+    query: { role: "viewer" } // 역할 구분 (방송자는 broadcaster)
+  });
+  socketRef.current = socket;
 
-  useEffect(() => {
-    const socket = io(SERVER_URL);
-    socketRef.current = socket;
+  // 여기에서 방 참여 요청!
+  socket.emit("join-live", { liveId });
 
-    // --- 자막 이벤트 처리 (WebSocket) ---
-    const handleSubtitleEvent = (data) => {
-      try {
-        let payload = data;
-        if (typeof data === 'string') payload = { original: data };
-        if (payload.liveId && payload.liveId !== liveId) return;
+  // 시청자 수
+  socket.on("viewer-count", (count) => {
+    console.log("📊 현재 시청자 수:", count);
+    setViewerCount(count);
+  });
 
-        const incoming = payload.subtitle || payload;
-        const normalized = (typeof incoming === 'string') ? { original: incoming } : incoming;
+  // 자막 이벤트
+  const handleSubtitleEvent = (data) => {
+    try {
+      let payload = data;
+      if (typeof data === "string") payload = { original: data };
+      if (payload.liveId && payload.liveId !== liveId) return;
 
-        if (normalized && normalized.original) {
-          setSubtitle(normalized);
-          if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
-          subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
-        }
-      } catch (err) {
-        console.error('자막 처리 중 오류', err);
+      const incoming = payload.subtitle || payload;
+      const normalized = typeof incoming === "string" ? { original: incoming } : incoming;
+
+      if (normalized && normalized.original) {
+        setSubtitle(normalized);
+        if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+        subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
       }
-    };
-
-    socket.on('subtitle', handleSubtitleEvent);
-    socket.on('subtitle-update', handleSubtitleEvent);
-
-    // --- REST 폴링 (백업) ---
-    async function fetchLatestSubtitle() {
-      if (streamStatus !== 'streaming') return; // 방송 중일 때만
-      try {
-        const res = await fetch(`${SUBTITLE_API_URL}/api/live/subtitle/${liveId}`);
-        if (res.status === 200) {
-          const data = await res.json();
-          setSubtitle((prev) => {
-            if (!prev || prev.original !== data.original) {
-              console.log("GET 자막:", data);
-              if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
-              subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
-              return data;
-            }
-            return prev;
-          });
-        }
-      } catch (err) {
-        console.error("GET 자막 실패:", err);
-      }
+    } catch (err) {
+      console.error("자막 처리 중 오류", err);
     }
+  };
+  socket.on("subtitle", handleSubtitleEvent);
+  socket.on("subtitle-update", handleSubtitleEvent);
 
-    if (liveId && !pollIntervalRef.current) {
-      fetchLatestSubtitle();
-      pollIntervalRef.current = setInterval(fetchLatestSubtitle, 2000);
-    }
+  // 🎥 Mediasoup 설정
+  const consume = async () => {
+    if (!deviceRef.current || !recvTransportRef.current) return;
+    try {
+      const { rtpCapabilities } = deviceRef.current;
+      const consumerParams = await new Promise((r) => socket.emit("consume", { rtpCapabilities }, r));
 
-    // --- mediasoup 설정 ---
-    const consume = async () => {
-      if (!deviceRef.current || !recvTransportRef.current) return;
-      try {
-        const { rtpCapabilities } = deviceRef.current;
-        const consumerParams = await new Promise(r => socket.emit('consume', { rtpCapabilities }, r));
-
-        if (consumerParams.error) {
-          setStreamStatus('waiting');
-          socket.once('new-producer', consume);
-          return;
-        }
-
-        const consumer = await recvTransportRef.current.consume(consumerParams);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = new MediaStream([consumer.track]);
-        }
-        setStreamStatus('streaming');
-        socket.emit('resume-consumer');
-      } catch (error) {
-        console.error("Consume 실패:", error);
-        setStreamStatus('waiting');
+      if (consumerParams.error) {
+        setStreamStatus("waiting");
+        socket.once("new-producer", consume);
+        return;
       }
-    };
 
-    const setupMediasoup = async () => {
-      try {
-        const routerRtpCapabilities = await new Promise(r => socket.emit('getRouterRtpCapabilities', r));
-        const device = new mediasoupClient.Device();
-        await device.load({ routerRtpCapabilities });
-        deviceRef.current = device;
+      const consumer = await recvTransportRef.current.consume(consumerParams);
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = new MediaStream([consumer.track]);
+      }
+      setStreamStatus("streaming");
+      socket.emit("resume-consumer");
+    } catch (error) {
+      console.error("Consume 실패:", error);
+      setStreamStatus("waiting");
+    }
+  };
 
-        const transportParams = await new Promise(r => socket.emit('createWebRtcTransport', { sending: false }, r));
-        const transport = device.createRecvTransport(transportParams);
-        recvTransportRef.current = transport;
+  const setupMediasoup = async () => {
+    try {
+      const routerRtpCapabilities = await new Promise((r) => socket.emit("getRouterRtpCapabilities", r));
+      const device = new mediasoupClient.Device();
+      await device.load({ routerRtpCapabilities });
+      deviceRef.current = device;
 
-        transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-          socket.emit('connectTransport', { dtlsParameters }, (error) => {
-            if (error) {
-              errback(new Error(error));
-              return;
-            }
-            callback();
-          });
+      const transportParams = await new Promise((r) =>
+        socket.emit("createWebRtcTransport", { sending: false }, r)
+      );
+      const transport = device.createRecvTransport(transportParams);
+      recvTransportRef.current = transport;
+
+      transport.on("connect", ({ dtlsParameters }, callback, errback) => {
+        socket.emit("connectTransport", { dtlsParameters }, (error) => {
+          if (error) {
+            errback(new Error(error));
+            return;
+          }
+          callback();
         });
+      });
 
-        consume();
-      } catch (error) {
-        console.error("Mediasoup 설정 실패:", error);
-        setStreamStatus('waiting');
-      }
-    };
+      consume();
+    } catch (error) {
+      console.error("Mediasoup 설정 실패:", error);
+      setStreamStatus("waiting");
+    }
+  };
 
-    socket.on('connect', setupMediasoup);
+  socket.on("connect", setupMediasoup);
 
-    socket.on('producer-closed', () => {
-      setStreamStatus('ended');
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+  socket.on("producer-closed", () => {
+    setStreamStatus("ended");
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
 
-      // 방송 종료 시 자막 및 폴링도 정리
-      setSubtitle(null);
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-    });
+    // 방송 종료 시 자막 및 폴링도 정리
+    setSubtitle(null);
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  });
 
-    return () => {
-      socket.off('connect', setupMediasoup);
-      socket.off('producer-closed');
-      socket.off('new-producer', consume);
-      socket.off('subtitle', handleSubtitleEvent);
-      socket.off('subtitle-update', handleSubtitleEvent);
+  return () => {
+    socket.off("connect", setupMediasoup);
+    socket.off("producer-closed");
+    socket.off("new-producer", consume);
+    socket.off("subtitle", handleSubtitleEvent);
+    socket.off("subtitle-update", handleSubtitleEvent);
 
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      if (subtitleTimerRef.current) {
-        clearTimeout(subtitleTimerRef.current);
-        subtitleTimerRef.current = null;
-      }
-      recvTransportRef.current?.close();
-      socket.disconnect();
-    };
-  }, [liveId, streamStatus]);
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (subtitleTimerRef.current) {
+      clearTimeout(subtitleTimerRef.current);
+      subtitleTimerRef.current = null;
+    }
+    recvTransportRef.current?.close();
+    socket.disconnect();
+  };
+}, [liveId, streamStatus]);
+
 
   // --- 채팅 입력 ---
   const handleChatInput = (e) => setChatInput(e.target.value);
@@ -233,6 +213,9 @@ const Viewer = () => {
       {/* 영상 + 채팅 */}
       <div className="live-page-stream-section">
         <div className="live-page-video-wrapper" style={{ position: "relative" }}>
+          <div className="viewer-count-badge">
+            👀 {viewerCount}명 시청중
+          </div>
           <video ref={remoteVideoRef} autoPlay muted className="live-page-video" />
           {streamStatus === 'waiting' && <p className="live-page-waiting">방송 시작을 기다리는 중...</p>}
           {streamStatus === 'ended' && <p className="live-page-waiting">방송이 종료되었습니다.</p>}
