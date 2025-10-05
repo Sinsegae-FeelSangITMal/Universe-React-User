@@ -5,7 +5,7 @@ import * as mediasoupClient from 'mediasoup-client';
 // --- 중요! ---                                                                                                                                                                                        
 // 서버의 IP 주소를 여기에 입력하세요.                                                                                                                                                                  
 // config.js에서 announcedIp에 입력한 값과 동일해야 합니다.                                                                                                                                             
-const SERVER_URL = 'http://192.168.60.12:4000';
+const SERVER_URL = 'http://192.168.10.101:4000';
 
 // 구매자의 라이브 스트림 시청 기능을 담당하는 컴포넌트                                                                                                                                                 
 const Viewer = () => {
