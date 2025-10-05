@@ -10,6 +10,9 @@ import CallbackPage from "./pages/auth/CallbackPage";
 import WithoutLayout from "./layouts/WithoutLayout";
 import WithLayout from "./layouts/WithLayout";
 import ProtectedRoute from "./components/routes/ProtectedRoute";
+import ProductDetail from "./pages/product/ProductDetail";
+import ProductList from "./pages/product/ProductList";
+import LivePage from "./pages/live/LivePage";
 import OauthInfoPage from "./pages/auth/OauthInfoPage";
 import Viewer from "./pages/live/Viewer";
 
@@ -36,6 +39,9 @@ function App() {
           <Route path="/view" element={<Viewer />} />
           {/* --- GEMINI-GENERATED CODE END --- */}
           
+
+          <Route path="/shop/products/:artistId" element={<ProductList />} />
+          <Route path="/shop/product/:productId" element={<ProductDetail />} />
 
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={  //결제 전 주문 정보
@@ -67,6 +73,12 @@ function App() {
               <MembershipPage />
             </ProtectedRoute>
           }
+          />
+          <Route path="/live/:artistId" element={
+            // <ProtectedRoute>
+              <LivePage />
+            // </ProtectedRoute>
+            } 
           />
         </Route>
       </Routes>

@@ -30,7 +30,26 @@ export default function NavbarGuest(){
                             </div>   
                         </div>
                         <div className="header-right1 d-flex align-items-center">
-                            <div className="card-stor mint" onClick={()=> navigate("/login")}>Login / Regist</div>
+                    
+                            {/* <!-- Search Box --> */}
+                            <div className="search d-none d-md-block">
+                                <ul className="d-flex align-items-center">
+                                    <li className="mr-15">
+                                        <div className="nav-search search-switch">
+                                            <i className="ti-search"></i>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div className="card-stor">
+                                            <img src="/assets/img/gallery/card.svg" alt=""/>
+                                            <span>0</span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div className="card-stor mint" onClick={()=> navigate("/login")}>Login</div>
+                            <div className="card-stor purple">Regist</div>
                         </div>
                         {/* <!-- Mobile Menu --> */}
                         <div className="col-12">
