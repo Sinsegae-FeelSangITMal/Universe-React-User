@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  define: {
+    global: {},
+  },
   plugins: [react()],
   server: {
     port: 4444, // 프론트 개발 서버 포트

@@ -3,116 +3,160 @@ import { useNavigate, useParams } from "react-router-dom";
 import { publicApi } from "../../api/api";
 import { FaTiktok, FaYoutube } from "react-icons/fa";
 import { FaInstagram, FaXTwitter } from "react-icons/fa6";
+import { getMembership } from "../../utils/MembershipApi";
+import { useAuthStore } from "../../store/auth";
 
 export default function ArtistIntroPage() {
 
-    // 아티스트 조회 페이지
-    // api 1. 아티스트명, 소개
-    // api 2. 멤버들 
-    // api 3. 라이브 영상 다시보기 
- 
-    const { artistId } = useParams();
-    const [artist, setArtist] = useState({});
-    const [members, setMembers] = useState([]);
-    const [liveStreams, setLiveStreams] = useState([]);
-    const [waitingStreams, setWaitingStreams] = useState([]);
-    const [endedStreams, setEndedStreams] = useState([]);
+  // 아티스트 조회 페이지
+  // api 1. 아티스트명, 소개
+  // api 2. 멤버들 
+  // api 3. 라이브 영상 다시보기 
 
-    const navigate = useNavigate();
+  const { artistId } = useParams();
+  const [artist, setArtist] = useState({});
+  const [members, setMembers] = useState([]);
+  const [liveStreams, setLiveStreams] = useState([]);
+  const [waitingStreams, setWaitingStreams] = useState([]);
+  const [endedStreams, setEndedStreams] = useState([]);
+  const [membership, setMembership] = useState();
+    const { user } = useAuthStore();
 
-    useEffect(()=>{
-        async function fetchArtist(){
-            const res = await publicApi.get(`/ent/artists/${artistId}`);
-            console.log("/ent/artists-intro/aritstId 호출 성공");
-            setArtist(res.data);
-        }
+  const navigate = useNavigate();
 
-        async function fetchMembers(){
-            const res = await publicApi.get(`/ent/members?artistId=${artistId}`);
-            setMembers(res.data);   
-        }
-        
-        async function fetchStreams(){
-            const res = await publicApi.get(`/ent/streams/artists/${artistId}/streams`);
-            const content = res.data.content;
+  useEffect(() => {
+    async function fetchArtist() {
+      const res = await publicApi.get(`/ent/artists/${artistId}`);
+      console.log("/ent/artists-intro/aritstId 호출 성공");
+      setArtist(res.data);
+    }
 
-            setLiveStreams(content.filter((s) => s.status === "LIVE"));
-            setWaitingStreams(content.filter((s) => s.status === "WAITING"));
-            setEndedStreams(content.filter((s) => s.status === "ENDED"));
-        }
+    async function fetchMembers() {
+      const res = await publicApi.get(`/ent/members?artistId=${artistId}`);
+      setMembers(res.data);
+    }
 
-        fetchArtist();
-        fetchMembers();
-        fetchStreams();
-    }, [artistId]);
+    async function fetchStreams() {
+      const res = await publicApi.get(`/ent/streams/artists/${artistId}/streams`);
+      console.log(res.data);
+      const content = res.data.content;
 
+      setLiveStreams(content.filter((s) => s.status === "LIVE"));
+      setWaitingStreams(content.filter((s) => s.status === "WAITING"));
+      setEndedStreams(content.filter((s) => s.status === "ENDED"));
+    }
+
+    fetchArtist();
+    fetchMembers();
+    fetchStreams();
+  }, [artistId]);
+
+
+  // 유저의 멤버십 정보 불러오기
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getMembership(user.userId);
+        setMembership(res.data.data);
+        console.log(res.data.data);
+      } catch (e) {
+        console.error("멤버십 정보 불러오기 실패:", e);
+      }
+    })();
+  }, []);
+
+  // 팬 전용 라이브 클릭 시 멤버십 확인
+  const handleProductClick = (live) => {
+    // 팬전용 라이브인지 검사
+    if (live.fanOnly) {
+      const today = new Date();
+
+      // 유저가 해당 아티스트 멤버십을 가지고 있는지 검사
+      const hasValidMembership = membership.some((m) => {
+        if (m.artistName !== artist.name) return false;
+        const start = new Date(m.startDate);
+        const end = new Date(m.endDate);
+        return today >= start && today <= end;
+      });
+
+      if (!hasValidMembership) {
+        alert(`${artist.name} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
+        return; // 이동 막기
+      }
+    }
+
+    // 통과하면 이동
+    location.href = (`/live/${artist.id}`);
+  };
 
 
   return (
-    <div style={{  maxWidth: 1100, margin: "0 auto", padding: "40px 0" }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 0" }}>
       {/* 메인 단체사진 영역 */}
-      <div style={{ 
+      <div style={{
         position: "relative",
         marginBottom: "10%",
         margin: "0 auto",
-        borderRadius: 24, 
-        }}>
-        <img 
-            src="/assets/img/test/jin.png" 
-            alt="group" 
-            style={{ 
-                width: "100%",
-                aspectRatio: "16 / 9",
-                borderRadius: 24,
-                objectFit: "cover",
+        borderRadius: 24,
+      }}>
+        <img
+          src={artist.img}
+          alt="group"
+          style={{
+            width: "100%",
+            aspectRatio: "16 / 9",
+            borderRadius: 24,
+            objectFit: "cover",
 
-                WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
-                WebkitMaskRepeat: "no-repeat",
-                WebkitMaskSize: "100% 100%",
+            WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskSize: "100% 100%",
 
-                maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
-                maskRepeat: "no-repeat",
-                maskSize: "100% 100%",
-            }} 
-            />
+            maskImage: "linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)",
+            maskRepeat: "no-repeat",
+            maskSize: "100% 100%",
+          }}
+        />
 
         <div style={{  //그룹명부터 구독버튼 div 
-            position: "absolute",
-            bottom: 40,
-            textAlign: "center",
-            position: "relative", 
-            zIndex: 2 
-            }}>
+          position: "absolute",
+          bottom: 40,
+          textAlign: "center",
+          position: "relative",
+          zIndex: 2
+        }}>
           <h1 style={{  // 그룹명 
-            fontWeight: 700, 
-            fontSize: 70, 
-            color: "#ffffffff", 
-            marginBottom: 30, 
-            textShadow: "0 2px 8px #0008" 
-            }}>{artist.name}</h1>
+            fontWeight: 700,
+            fontSize: 70,
+            color: "#ffffffff",
+            marginBottom: 30,
+            textShadow: "0 2px 8px #0008"
+          }}>{artist.name}</h1>
           <div style={{  // 소개글 
-            color: "#4c4c4cff", 
-            fontSize: 16, 
-            maxWidth: 360, 
-            margin: "0 auto", 
+            color: "#4c4c4cff",
+            fontSize: 16,
+            maxWidth: 360,
+            margin: "0 auto",
             marginBottom: 10,
-            wordBreak: "keep-all", 
-            whiteSpace: "pre-line", 
-            lineHeight: 1.5 }}>
+            wordBreak: "keep-all",
+            whiteSpace: "pre-line",
+            lineHeight: 1.5
+          }}>
             {artist.description}
           </div>
-          <button style={{ 
-            marginTop: 20, 
-            padding: "8px 30px", 
-            fontSize: 16, 
-            fontWeight: 600, 
-            background: "#fff", 
-            color: "#393636ff", 
-            border: "none", 
-            borderRadius: 100, 
+          <button style={{
+            marginTop: 20,
+            padding: "8px 30px",
+            fontSize: 16,
+            fontWeight: 600,
+            background: "#fff",
+            color: "#393636ff",
+            border: "none",
+            borderRadius: 100,
             border: "2.5px solid black",
-            
-            cursor: "pointer" }}>
+
+            cursor: "pointer"
+          }}>
             구독
           </button>
         </div>
@@ -134,63 +178,78 @@ export default function ArtistIntroPage() {
 
       {/* 실시간 라이브 영역 -> 실시간 시청자 수, 조회수 */}
       <div style={{ marginBottom: 120 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30}}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>ON AIR</div>
         </div>
         <div style={{ display: "flex", gap: 24, }}>
           {liveStreams.map((live) => ( //생방중인 라이브는 항상 한개라고 가정함
             // 라이브 카드 
-            <div key={live.id} style={{ 
-                position: "relative", 
-                overflow: "hidden", 
-                }}>
+            <div key={live.id} style={{
+              position: "relative",
+              overflow: "hidden",
+            }}>
 
-              <img src="/assets/img/test/jin.png"/*{live.thumb}*/ alt={live.title} style={{ 
-                width: "350px", 
-                height: "230px", 
-                objectFit: "cover",
-                borderRadius: 20, 
-                border: "3px solid #e11d48",  // 생방중인 라이브는 테두리 무조건 빨갛게  
+              <img src={live.thumb} alt={live.title}
+                onClick={() => handleProductClick(live)}
+                style={{
+                  width: "350px",
+                  height: "230px",
+                  objectFit: "cover",
+                  borderRadius: 20,
+                  border: "5px solid #e11d48",  // 생방중인 라이브는 테두리 무조건 빨갛게 
+                  cursor: "pointer"
                 }} />
-              {live.isAir && <div style={{ // 생방송 Live 뱃지 
-                position: "absolute", 
-                top: 8, left: 8, 
-                background: "#e11d48", 
-                color: "#fff", 
-                fontWeight: 700, 
-                fontSize: 13, 
-                borderRadius: 6, 
-                padding: "2px 10px" 
+              {<div
+                style={{ // 생방송 Live 뱃지 
+                  position: "absolute",
+                  top: 15, left: 15,
+                  background: "#e11d48",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  borderRadius: 6,
+                  padding: "2px 10px"
                 }}>LIVE</div>}
               <div style={{ padding: 12 }}>
-                <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{live.title}</div>                
+                <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{live.title}</div>
               </div>
+              {live.fanOnly && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "rgba(188, 0, 0, 1)",
+                    marginLeft: "10px",
+                    fontWeight: 600,
+                  }}
+                >🔒 멤버십 전용 라이브
+                </div>
+              )}
             </div>
           ))}
         </div>
 
       </div>
-      
+
 
       {/* 예정된 라이브 영역 -> 이미지, 예정된 시간 어떻게 알릴지*/}
       <div style={{ marginBottom: 120 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30}}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>예정된 LIVE</div>
         </div>
         <div style={{ display: "flex", gap: 24 }}>
           {waitingStreams.map((live) => ( // 예정된 라이브도 3개를 안넘는다고 가정하고 짰음
             // 라이브 카드 
-            <div key={live.id} style={{ 
-                position: "relative", 
-                overflow: "hidden", 
-                }}>
+            <div key={live.id} style={{
+              position: "relative",
+              overflow: "hidden",
+            }}>
 
-              <img src="/assets/img/test/jin.png"/*{live.thumb}*/ alt={live.title} style={{ 
-                width: "350px", 
-                height: "230px", 
+              <img src={live.thumb} alt={live.title} style={{
+                width: "350px",
+                height: "230px",
                 objectFit: "cover",
-                borderRadius: 20, 
-                }} />
+                borderRadius: 20,
+              }} />
 
 
               <div style={{ padding: 12 }}>
@@ -205,34 +264,34 @@ export default function ArtistIntroPage() {
 
       {/* 종료된 라이브(다시보기) 영역 -> 총 방송 시간 보여줘야 됨 + 방송일자 보여줄지,  */}
       <div style={{ marginBottom: 120 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30}}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>다시보기</div>
-          <button onClick={() => navigate(`/artists/${artistId}/vods`) } style={{ 
-            background: "none", 
-            border: "none", 
-            color: "#000000ff", 
-            fontSize: 16, 
-            display: "flex", 
-            alignItems: "center", 
-            cursor: "pointer" 
-            }}>
-            모두보기 <span style={{ marginLeft: 4, fontSize: 18 }}>▼</span>
+          <button onClick={() => navigate(`/artists/${artistId}/vods`)} style={{
+            background: "none",
+            border: "none",
+            color: "#000000ff",
+            fontSize: 16,
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer"
+          }}>
+            더보기 <span style={{ marginLeft: 4, fontSize: 18 }}>▶</span>
           </button>
         </div>
         <div style={{ display: "flex", gap: 24 }}>
           {endedStreams.slice(0, 3).map((live) => ( //라이브 영상 3개만 보여주기 
             // 라이브 카드 
-            <div key={live.id} style={{ 
-                position: "relative", 
-                overflow: "hidden", 
-                }}>
+            <div key={live.id} style={{
+              position: "relative",
+              overflow: "hidden",
+            }}>
 
-              <img src="/assets/img/test/jin.png"/*{live.thumb}*/ alt={live.title} style={{ 
-                width: "350px", 
-                height: "230px", 
+              <img src={live.thumb} alt={live.title} style={{
+                width: "350px",
+                height: "230px",
                 objectFit: "cover",
-                borderRadius: 20, 
-                }} />
+                borderRadius: 20,
+              }} />
 
               <div style={{ padding: 12 }}>
                 <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{live.title}</div>
@@ -244,7 +303,7 @@ export default function ArtistIntroPage() {
 
       </div>
 
-    {/* SNS + 스토어 */}
+      {/* SNS + 스토어 */}
       <div style={{ display: "flex", marginBottom: 50, flexDirection: "column", alignItems: "center", gap: 24 }}>
         {/* SNS */}
         <div style={{ display: "flex", gap: 24, marginBottom: 30 }}>
@@ -264,7 +323,7 @@ export default function ArtistIntroPage() {
 
         {/* 스토어 버튼 */}
         <a
-          href="/store"
+          href={`/shop/products/${artist.id}`}
           style={{
             background: "#fff",
             color: "#000",
