@@ -128,7 +128,7 @@ export default function ArtistIntroPage() {
           <h1 style={{  // 그룹명 
             fontWeight: 700,
             fontSize: 70,
-            color: "#ffffffff",
+            color: "#363636ff",
             marginBottom: 30,
             textShadow: "0 2px 8px #0008"
           }}>{artist.name}</h1>
