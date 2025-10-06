@@ -34,6 +34,16 @@
     height: 30px;
 }
 
+.form-select.product {
+    background-color: #f9f9ff;
+    color: #373737;
+    padding-left: 16px;
+    border: solid #c3c3c3 1px;
+    border-radius: 5px;
+    width: 180px;
+    height: 30px;
+}
+
 .genric-btn.card {
     width: 150px;
 }
@@ -272,4 +282,17 @@
   font-size: 16px;
   margin-top: 24px;
   cursor: pointer;
+}
+
+/* Chrome, Safari, Edge (WebKit 기반 브라우저) */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
 }

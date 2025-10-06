@@ -6,7 +6,7 @@ const URL = "http://localhost:7777/api/carts";
 export const getCart = (userId) => axios.get(`${URL}/${userId}`);
 
 // 장바구니 추가 요청
-export const addCart = () => axios.post(`${URL}`);
+export const addCart = (userId, productId, qty) => axios.post(`${URL}`, { userId, productId, qty });
 
 // 장바구니 수정 요청
 export const updateCart = (cartId, qty) => axios.put(`${URL}/${cartId}`, { qty });
