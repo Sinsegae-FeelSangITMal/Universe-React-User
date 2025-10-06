@@ -15,6 +15,9 @@ import ProductList from "./pages/product/ProductList";
 import LivePage from "./pages/live/LivePage";
 import OauthInfoPage from "./pages/auth/OauthInfoPage";
 import Viewer from "./pages/live/Viewer";
+import ArtistIntroPage from "./pages/artist/ArtistIntroPage";
+import ArtistVODPage from "./pages/artist/ArtistVODPage";
+
 
 function App() {
 
@@ -32,6 +35,8 @@ function App() {
         {/* Navbar 있는 그룹 */}
         <Route element={<WithLayout />}>
           <Route path="/main" element={<MainPage />} />
+          <Route path="/artists/:artistId/intro" element={<ArtistIntroPage />} />
+          <Route path="/artists/:artistId/vods" element={<ArtistVODPage />} />
 
 
           {/* --- GEMINI-GENERATED CODE START --- */}
