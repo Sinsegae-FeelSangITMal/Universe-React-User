@@ -1,10 +1,13 @@
+// LivePage.jsx
 import { useState, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
 import * as mediasoupClient from 'mediasoup-client';
 import SockJS from 'sockjs-client';
 import { Client as StompClient } from '@stomp/stompjs';
+import { useAuthStore } from '../../store/auth';
 
+// ===== 서버 엔드포인트 =====
 const SERVER_URL  = 'http://192.168.60.30:4000'; // mediasoup signaling
 const CHAT_WS_URL = '/ws';                       // Vite proxy → chat-server:8888
 
@@ -14,6 +17,19 @@ const APP_SEND        = (id) => `/app/live/${id ?? 'global'}`;
 
 const LivePage = () => {
   const { artistId } = useParams();
+  const { user, accessToken } = useAuthStore(); // 전역 스토어에서 유저/토큰
+
+  // 로그인된 사용자 정보
+  const sender   = user?.nickname || `유저${Math.floor(Math.random() * 1000)}`;
+  const myUserId = user?.userId || 0;
+
+  const remoteVideoRef  = useRef(null);
+  const chatMessagesRef = useRef(null);
+  const composingRef    = useRef(false); // IME 조합 상태
+
+  const [isStreamAvailable, setIsStreamAvailable] = useState(false);
+  const [chatList, setChatList] = useState([]); // 서버 브로드캐스트만 표시
+  const [chatInput, setChatInput] = useState('');
 
   const [products] = useState([
     { id: 1, name: "The 1st Mini Album [From JOY, with Love] (To You Ver.)", price: 39300, img: "/assets/img/hero/product1.png", option: ["옵션 선택", "S", "M", "L"] },
@@ -22,28 +38,6 @@ const LivePage = () => {
     { id: 4, name: "The 1st Mini Album [From JOY, with Love] (To You Ver.)", price: 39300, img: "/assets/img/hero/product1.png", option: ["옵션 선택", "S", "M", "L"] },
   ]);
 
-  const remoteVideoRef   = useRef(null);
-  const chatMessagesRef  = useRef(null);
-  const composingRef     = useRef(false); // ← IME 조합 상태
-
-  const [isStreamAvailable, setIsStreamAvailable] = useState(false);
-  const [chatList, setChatList] = useState([]); // 서버 브로드캐스트만 표시
-  const [chatInput, setChatInput] = useState('');
-
-  // 브라우저 고정 닉네임(표시용)
-  const [sender] = useState(() => {
-    const saved = localStorage.getItem('chatSender');
-    if (saved) return saved;
-    const nick = '유저' + Math.floor(Math.random() * 1000);
-    localStorage.setItem('chatSender', nick);
-    return nick;
-  });
-
-  // 숫자 사용자 ID(서버와 통신용)
-  const myUserId = useRef(
-    Number(localStorage.getItem('userId') || 0)
-  );
-
   // ===== 채팅 자동 스크롤 =====
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -51,27 +45,24 @@ const LivePage = () => {
     }
   }, [chatList]);
 
-  // ===== mediasoup (viewer) =====
+  // ===== mediasoup 뷰어 =====
   useEffect(() => {
     const socket = io(SERVER_URL, { transports: ['websocket'] });
     socket.on('connect', () => {
-      console.log('[mediasoup] socket connected:', socket.id);
       consumeStream(socket);
     });
-    socket.on('disconnect', (r) => console.warn('[mediasoup] socket disconnected:', r));
-    socket.on('connect_error', (e) => console.error('[mediasoup] connect_error:', e?.message || e));
+    socket.on('disconnect', () => {});
+    socket.on('connect_error', () => {});
     return () => socket.disconnect();
   }, []);
 
   const consumeStream = async (socket) => {
     try {
-      console.log('[mediasoup] getRouterRtpCapabilities');
       const routerRtpCapabilities = await new Promise((resolve) =>
         socket.emit('getRouterRtpCapabilities', resolve)
       );
       const device = new mediasoupClient.Device();
       await device.load({ routerRtpCapabilities });
-      console.log('[mediasoup] device loaded');
 
       const transportParams = await new Promise((resolve) =>
         socket.emit('createWebRtcTransport', { sending: false }, resolve)
@@ -85,7 +76,6 @@ const LivePage = () => {
         socket.emit('consume', { rtpCapabilities: device.rtpCapabilities }, resolve)
       );
       if (consumerParams?.error) {
-        console.warn('[mediasoup] no producer, wait…');
         setIsStreamAvailable(false);
         socket.once('new-producer', () => consumeStream(socket));
         return;
@@ -96,67 +86,82 @@ const LivePage = () => {
         remoteVideoRef.current.srcObject = new MediaStream([consumer.track]);
       }
       setIsStreamAvailable(true);
-      console.log('[mediasoup] stream started');
 
       await new Promise((resolve) => socket.emit('resume-consumer', resolve));
-    } catch (e) {
-      console.error('[mediasoup] consume error:', e);
+    } catch {
       setIsStreamAvailable(false);
     }
   };
 
-  // ===== STOMP/SockJS (채팅) - broadcast만 렌더 =====
+  // ===== STOMP/SockJS (채팅) =====
   const stompRef = useRef(null);
   useEffect(() => {
-    console.log('[chat] connect →', CHAT_WS_URL, 'topic:', TOPIC_SUBSCRIBE(artistId));
+    if (!accessToken) {
+      console.warn('[chat] No access token, STOMP connection not attempted.');
+      return;
+    }
+
     const sock = new SockJS(CHAT_WS_URL);
     const client = new StompClient({
       webSocketFactory: () => sock,
+      connectHeaders: {
+        Authorization: `Bearer ${accessToken}`, // 인터셉터가 여기서 토큰 읽음
+      },
       reconnectDelay: 4000,
       onConnect: (frame) => {
-        console.log('[chat] STOMP connected:', frame?.headers);
-        // artistId 방 구독
         client.subscribe(TOPIC_SUBSCRIBE(artistId), (f) => {
-          console.log('[chat] message:', f.body);
           try {
             const body = JSON.parse(f.body);
-            // 서버: { roomId, senderId, content, contentType, createdAt }
+            // 서버: { roomId, senderId, nickname, content, contentType, createdAt }
             setChatList((prev) => [
               ...prev,
               {
-                id: `${body.createdAt ?? Date.now()}-${Math.random()}`, // key 충돌 방지
+                id: `${body.createdAt ?? Date.now()}-${Math.random()}`,
                 senderId: body.senderId ?? 0,
+                nickname: body.nickname ?? '익명',
                 text: body.content ?? '',
                 type: body.contentType === 'SYSTEM' ? 'admin' : 'user',
+                createdAt: body.createdAt,
               },
             ]);
           } catch {
             setChatList((prev) => [
               ...prev,
-              { id: `${Date.now()}-${Math.random()}`, senderId: -1, text: f.body, type: 'admin' },
+              { id: `${Date.now()}-${Math.random()}`, senderId: -1, nickname: '시스템', text: f.body, type: 'admin' },
             ]);
           }
         });
       },
-      onStompError: (f) => console.error('[chat] STOMP error:', f?.headers, f?.body),
-      onWebSocketClose: (e) => console.warn('[chat] WS closed:', e?.code, e?.reason),
+      onStompError: () => {},
+      onWebSocketClose: () => {},
       debug: () => {},
     });
+
     client.activate();
     stompRef.current = client;
 
     return () => {
       try { client.deactivate(); } catch {}
       stompRef.current = null;
-      console.log('[chat] STOMP deactivated');
     };
-  }, [artistId]);
+  }, [artistId, accessToken]);
+
+  // ===== 유틸 =====
+  const formatTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? '오후' : '오전';
+    const formattedHours = hours % 12 || 12;
+    return `${ampm} ${formattedHours}:${minutes.toString().padStart(2, '0')}`;
+  };
 
   // ===== 채팅 입력 =====
   const handleChatInput = (e) => setChatInput(e.target.value);
 
   const handleChatKeyDown = (e) => {
-    // IME(한글) 조합 중이면 엔터 무시
+    // IME(한글) 조합 중이면 엔터 무시 (크롬 마지막 글자 중복 방지)
     if (e.key === 'Enter') {
       if (composingRef.current || e.nativeEvent.isComposing) return;
       handleChatSend();
@@ -172,22 +177,13 @@ const LivePage = () => {
       return;
     }
 
-    // ChatMessageRequest DTO에 맞춘 payload
-    const payload = {
-      roomId: Number(artistId) || 0,
-      senderId: myUserId.current,     // 숫자 ID
-      content: text,                  // 본문
-      contentType: 'TEXT',
-      createdAt: new Date().toISOString(), // 서버에서 now 찍어도 OK
-    };
-    console.log('[chat] publish →', APP_SEND(artistId), payload);
-
+    // 서버가 토큰으로 사용자 식별 → 내용만 보냄
+    const payload = { content: text };
     stompRef.current.publish({
       destination: APP_SEND(artistId),
       body: JSON.stringify(payload),
     });
 
-    // 서버 broadcast 수신 시에만 chatList 추가
     setChatInput('');
   };
 
@@ -196,7 +192,9 @@ const LivePage = () => {
     <div className="live-page-container">
       {/* 상단 타이틀 */}
       <div className="live-page-header">
-        <h2 className="live-page-artist">에스파 <span style={{ color: '#7c4dff' }}>LIVE</span></h2>
+        <h2 className="live-page-artist">
+          에스파 <span style={{ color: '#7c4dff' }}>LIVE</span>
+        </h2>
         <hr className="live-page-hr" />
         <p className="live-page-desc">
           ♡에스파 공식 25FW MD REVIEW♡ 2025.01.15 8PM OPEN!<br />
@@ -207,22 +205,75 @@ const LivePage = () => {
       <div className="live-page-stream-section">
         <div className="live-page-video-wrapper">
           <video ref={remoteVideoRef} autoPlay className="live-page-video" />
-          {!isStreamAvailable && <p className="live-page-waiting">방송 시작을 기다리는 중...</p>}
+          {!isStreamAvailable && (
+            <p className="live-page-waiting">방송 시작을 기다리는 중...</p>
+          )}
         </div>
 
-        <div className="live-page-chat-section" style={{height: '100%'}}>
+        <div className="live-page-chat-section" style={{ height: '100%' }}>
           <div className="live-page-chat-title">실시간 채팅</div>
 
           <div className="live-page-chat-messages" ref={chatMessagesRef}>
             {chatList.map((msg) => {
-              const isMine = msg.senderId === myUserId.current && msg.type !== 'admin';
-              const name   = isMine ? '나' : (msg.type === 'admin' ? '시스템' : '익명');
+              const isMine = msg.senderId === myUserId && msg.type !== 'admin';
+
+              // 서버 닉네임 우선 사용
+              const name =
+                msg.type === 'admin'
+                  ? '시스템'
+                  : isMine
+                    ? (msg.nickname || sender)
+                    : (msg.nickname || '익명');
+
+              const time = formatTime(msg.createdAt);
+
               return (
-                <div key={msg.id} className={msg.type === 'admin' ? 'live-page-chat-admin' : 'live-page-chat-user'}>
-                  <span className="live-page-chat-sender" style={{ color: msg.type === 'admin' ? '#3b4fff' : '#222', fontWeight: 600 }}>
-                    {name}:
-                  </span>{' '}
-                  <span className="live-page-chat-text">{msg.text}</span>
+                <div
+                  key={msg.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: isMine ? 'flex-end' : 'flex-start',
+                    margin: '5px 0'
+                  }}
+                >
+                  {isMine && (
+                    <span
+                      style={{
+                        alignSelf: 'flex-end',
+                        fontSize: '0.75rem',
+                        color: '#999',
+                        marginRight: 8
+                      }}
+                    >
+                      {time}
+                    </span>
+                  )}
+
+                  <div
+                    className={msg.type === 'admin' ? 'live-page-chat-admin' : 'live-page-chat-user'}
+                    style={{ maxWidth: '70%' }}
+                  >
+                    <span
+                      className="live-page-chat-sender"
+                      style={{ color: msg.type === 'admin' ? '#3b4fff' : '#222', fontWeight: 600 }}
+                    >
+                      {name}:
+                    </span>{' '}
+                    <span className="live-page-chat-text">{msg.text}</span>
+                  </div>
+
+                  {!isMine && (
+                    <span
+                      style={{
+                        alignSelf: 'flex-end',
+                        fontSize: '0.75rem',
+                        color: '#999',
+                        marginLeft: 8
+                      }}
+                    >
+                      {time}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -235,8 +286,8 @@ const LivePage = () => {
               placeholder="메시지 보내기.."
               value={chatInput}
               onChange={handleChatInput}
-              onCompositionStart={() => { composingRef.current = true; }}   // ← IME 시작
-              onCompositionEnd={() => { composingRef.current = false; }}    // ← IME 종료
+              onCompositionStart={() => { composingRef.current = true; }} // IME 시작
+              onCompositionEnd={() => { composingRef.current = false; }}  // IME 종료
               onKeyDown={handleChatKeyDown}
             />
           </div>
@@ -262,8 +313,9 @@ const LivePage = () => {
                 </div>
               </div>
               <div className="live-page-product-price-col">
-                <span className="live-page-product-price">KRW<span style={{ marginLeft: 2 }}>
-                  ₩{p.price.toLocaleString()}</span></span>
+                <span className="live-page-product-price">
+                  KRW<span style={{ marginLeft: 2 }}>₩{p.price.toLocaleString()}</span>
+                </span>
               </div>
               <div className="live-page-product-buttons-col">
                 <button className="live-page-btn-cart live-page-btn-outline">장바구니</button>

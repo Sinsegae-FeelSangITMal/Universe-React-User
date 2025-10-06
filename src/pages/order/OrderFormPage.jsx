@@ -66,7 +66,10 @@ export default function OrderSubmitPage() {
         //e.preventDefault();
         try {
             const res = await submitOrder(payload);
-            navigate(`/order/paid/${res.data.data}`); // 주문 완료 페이지로 이동
+            console.log(res.data.data);
+            window.location.href=`${res.data.data.redirectUrl}?orderId=${res.data.data.orderId}`;// 결제창으로 이동 
+
+            //navigate(`/order/paid/${res.data.data}`); // 주문 완료 페이지로 이동
         } catch (err) {
             console.error(err);
             // navigate(`/unpaid/${orderId}`); // 주문 실패 페이지로 이동
