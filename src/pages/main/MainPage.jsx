@@ -66,10 +66,11 @@ export default function Main() {
                 <div className="row justify-content-center">
                   <div className="col-xl-8 col-lg-9">
                     <div className="hero__caption">
-                      <h1>
-                        에스파 유니버스 라이브<br />Aespa Universe Live<br />25.10.13
+                      <h1 style={{marginBottom: 50, textShadow: "0 0 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 9px rgba(0, 0, 0, 0.7)"}}>
+                        25.11.01<br/>
+                        BTS Special Live
                       </h1>
-                      <a href="shop.html" className="btn">Shop Now</a>
+                      <a href="shop.html" className="btn">View Special MD</a>
                     </div>
                   </div>
                 </div>
@@ -81,10 +82,11 @@ export default function Main() {
                 <div className="row justify-content-center">
                   <div className="col-xl-8 col-lg-9">
                     <div className="hero__caption">
-                      <h1>
-                        에스파 유니버스 라이브<br />Aespa Universe Live<br />25.10.13
+                      <h1 style={{marginBottom: 50}}>
+                        Universe X Netflix<br/>
+                        <h1 style={{color: "#430759ff", textShadow: "0 0 3px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.9), 0 0 9px rgba(255, 255, 255, 0.9)"}}>KPop Demon Hunters</h1>
                       </h1>
-                      <a href="shop.html" className="btn">Shop Now</a>
+                      <a href="shop.html" className="btn">View Products</a>
                     </div>
                   </div>
                 </div>
