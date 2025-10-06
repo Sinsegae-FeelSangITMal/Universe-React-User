@@ -7,7 +7,7 @@ import { useAuthStore } from "../../store/auth";
 import { addCart } from "../../utils/CartApi";
 
 const DUMMY_IMG = "/assets/img/gallery/bts_product_image.jpg";
-const DUMMY_LONG_IMG = "/assets/img/gallery/bts_long_image.jpg";
+const DUMMY_LONG_IMG = "/assets/img/dummyImg/bts_product1-detail.jpg";
 
 export default function ProductDetail() {
   const { productId } = useParams();
