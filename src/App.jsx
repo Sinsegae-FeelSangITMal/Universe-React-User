@@ -17,11 +17,13 @@ import OauthInfoPage from "./pages/auth/OauthInfoPage";
 import Viewer from "./pages/live/Viewer";
 import ArtistIntroPage from "./pages/artist/ArtistIntroPage";
 import ArtistVODPage from "./pages/artist/ArtistVODPage";
+import ScrollToTop from "./components/ScrollToTop";
 
 function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />   {/* 페이지 전환 시 자동 스크롤 맨 위로 */}
       <Routes>
         {/* Navbar 없는 그룹 */}
         <Route element={<WithoutLayout />}>
@@ -42,9 +44,9 @@ function App() {
           <Route path="/shop/product/:productId" element={<ProductDetail />} />
 
           {/* 위: 영상 완료 / 아래: 채팅 완료 (병합 및 테스트 전) */}
-          <Route path="/live/:artistId" element={<Viewer />} />
+          <Route path="/artists/:artistId/live/:liveId" element={<Viewer />} />
           {/* <Route path="/live/:artistId" element={<LivePage />} /> */}
-          
+
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={  //결제 전 주문 정보
             <ProtectedRoute>
@@ -62,7 +64,7 @@ function App() {
             <ProtectedRoute>
               <OrderListPage />
             </ProtectedRoute>
-            } 
+          }
           />
           <Route path="/cart" element={
             <ProtectedRoute>

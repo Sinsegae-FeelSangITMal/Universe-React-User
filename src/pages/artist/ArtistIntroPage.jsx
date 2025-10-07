@@ -20,7 +20,7 @@ export default function ArtistIntroPage() {
   const [waitingStreams, setWaitingStreams] = useState([]);
   const [endedStreams, setEndedStreams] = useState([]);
   const [membership, setMembership] = useState();
-    const { user } = useAuthStore();
+  const { user } = useAuthStore();
 
   const navigate = useNavigate();
 
@@ -86,7 +86,7 @@ export default function ArtistIntroPage() {
     }
 
     // 통과하면 이동
-    location.href = (`/live/${artist.id}`);
+    navigate(`/artists/${artist.id}/live/${live.id}`);
   };
 
 
