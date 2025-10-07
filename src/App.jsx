@@ -42,8 +42,8 @@ function App() {
           <Route path="/shop/product/:productId" element={<ProductDetail />} />
 
           {/* 위: 영상 완료 / 아래: 채팅 완료 (병합 및 테스트 전) */}
-          <Route path="/live/:artistId" element={<Viewer />} />
-          {/* <Route path="/live/:artistId" element={<LivePage />} /> */}
+          {/* <Route path="/live/:artistId" element={<Viewer />} /> */}
+          <Route path="/live/:artistId" element={<LivePage />} />
           
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={  //결제 전 주문 정보

@@ -13,6 +13,7 @@ export default defineConfig({
       '/api':    { target: 'http://localhost:7777', changeOrigin: true }, // Universe API
       '/images': { target: 'http://localhost:7777', changeOrigin: true },
       '/ws':     { target: 'http://localhost:8888', changeOrigin: true, ws: true }, // Chat 서버
+      '/chatapi':     { target: 'http://localhost:8888', changeOrigin: true}, // Chat 서버 API
     },
   },
   define: {

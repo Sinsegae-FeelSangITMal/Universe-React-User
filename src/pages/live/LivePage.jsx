@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import * as mediasoupClient from 'mediasoup-client';
 import SockJS from 'sockjs-client';
 import { Client as StompClient } from '@stomp/stompjs';
+import toast, { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth';
 
 // ===== 서버 엔드포인트 =====
@@ -30,6 +31,9 @@ const LivePage = () => {
   const [isStreamAvailable, setIsStreamAvailable] = useState(false);
   const [chatList, setChatList] = useState([]); // 서버 브로드캐스트만 표시
   const [chatInput, setChatInput] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
+  const [muteSecondsLeft, setMuteSecondsLeft] = useState(0);
+  const [isBanned, setIsBanned] = useState(false);
 
   const [products] = useState([
     { id: 1, name: "The 1st Mini Album [From JOY, with Love] (To You Ver.)", price: 39300, img: "/assets/img/hero/product1.png", option: ["옵션 선택", "S", "M", "L"] },
@@ -134,18 +138,20 @@ const LivePage = () => {
         });
 
         // 2. 개인 시스템 메시지 구독 (Mute/Ban 알림용)
-        client.subscribe('/user/queue/system', (message) => {
+        client.subscribe(`/queue/system-${myUserId}`, (message) => {
           try {
             const payload = JSON.parse(message.body);
-            alert(payload.message); // Mute와 Ban 모두 일단 alert를 띄움
-
-            // Ban인 경우에만 메인 페이지로 리다이렉트
-            if (payload.code === 'BANNED') {
-              navigate('/');
+            
+                        if (payload.code === 'BANNED') {
+                          setIsBanned(true);
+                        } else if (payload.code === 'MUTED') {                toast(payload.message, { icon: '🤫' });
+              setIsMuted(true);
+              setMuteSecondsLeft(30);
             }
+
           } catch (e) {
             // JSON 파싱 실패 시 일반 텍스트로 처리
-            alert(message.body);
+            toast.error(message.body);
           }
         });
       },
@@ -165,6 +171,84 @@ const LivePage = () => {
       stompRef.current = null;
     };
   }, [artistId, accessToken, navigate]);
+
+  // ===== Mute 타이머 =====
+  useEffect(() => {
+    if (!isMuted || muteSecondsLeft <= 0) {
+      if (isMuted) setIsMuted(false); // 타이머 종료 시 Mute 해제
+      return;
+    }
+
+    const timerId = setInterval(() => {
+      setMuteSecondsLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timerId); // 클린업
+  }, [isMuted, muteSecondsLeft]);
+
+  // ===== Ban 체크 =====
+  useEffect(() => {
+    console.log(`[Ban Check] Effect triggered. myUserId: ${myUserId}, artistId: ${artistId}`);
+    // 로그인된 사용자이고, artistId가 있을 때만 체크
+    if (myUserId && artistId) {
+      const checkBanStatus = async () => {
+        const url = `/chatapi/moderation/status?userId=${myUserId}&roomId=${artistId}`;
+        console.log(`[Ban Check] Fetching ban status from: ${url}`);
+        try {
+          const response = await fetch(url);
+          console.log(`[Ban Check] Response status: ${response.status}`);
+
+          if (!response.ok) {
+            console.error(`[Ban Check] API request failed with status ${response.status}`);
+            return;
+          }
+
+          const data = await response.json();
+          console.log('[Ban Check] Received data:', data);
+
+          if (data.isBanned) {
+            setIsBanned(true);
+          } else {
+            console.log('[Ban Check] User is not banned.');
+          }
+        } catch (error) {
+          console.error('Ban status check failed with error:', error);
+        }
+      };
+
+      checkBanStatus();
+    } else {
+      console.log('[Ban Check] Skipping check because myUserId or artistId is missing.');
+    }
+  }, [myUserId, artistId, navigate]);
+
+  // ===== 최근 메시지 불러오기 =====
+  useEffect(() => {
+    if (artistId) {
+      const fetchRecentMessages = async () => {
+        try {
+          const response = await fetch(`/chatapi/rooms/${artistId}/messages`);
+          if (!response.ok) return;
+          const history = await response.json();
+          
+          // API 응답 포맷을 프론트엔드 state 포맷으로 변환s
+          const formattedHistory = history.map(msg => ({
+            id: `${msg.createdAt ?? Date.now()}-${Math.random()}`,
+            senderId: msg.senderId ?? 0,
+            nickname: msg.nickname ?? '익명',
+            text: msg.content ?? '',
+            type: msg.contentType === 'SYSTEM' ? 'admin' : 'user',
+            createdAt: msg.createdAt,
+          }));
+
+          setChatList(formattedHistory);
+        } catch (error) {
+          console.error("Failed to fetch recent messages:", error);
+        }
+      };
+      fetchRecentMessages();
+    }
+  }, [artistId]);
 
   // ===== 유틸 =====
   const formatTime = (isoString) => {
@@ -193,7 +277,7 @@ const LivePage = () => {
     if (!text) return;
 
     if (!stompRef.current?.connected) {
-      alert('채팅 서버와 연결되지 않았습니다.');
+      toast.error('채팅 서버와 연결되지 않았습니다.');
       return;
     }
 
@@ -208,8 +292,32 @@ const LivePage = () => {
   };
 
   // ===== 디자인 그대로 렌더 =====
+  if (isBanned) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f8f9fa' }}>
+        <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>🚫 접근이 차단되었습니다 🚫</h2>
+        <p style={{ fontSize: '1.2rem', color: '#6c757d', marginBottom: '2rem' }}>이 라이브에 대한 접근 권한이 없습니다.</p>
+        <button 
+          onClick={() => navigate('/main')}
+          style={{
+            padding: '10px 20px',
+            fontSize: '1rem',
+            color: '#fff',
+            backgroundColor: '#007bff',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          메인으로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="live-page-container">
+      <Toaster position="bottom-center" />
       {/* 상단 타이틀 */}
       <div className="live-page-header">
         <h2 className="live-page-artist">
@@ -303,12 +411,13 @@ const LivePage = () => {
             <input
               type="text"
               className="live-page-chat-input"
-              placeholder="메시지 보내기.."
+              placeholder={isMuted ? `${muteSecondsLeft}초 동안 채팅이 금지되었습니다.` : "메시지 보내기.."}
               value={chatInput}
               onChange={handleChatInput}
               onCompositionStart={() => { composingRef.current = true; }} // IME 시작
               onCompositionEnd={() => { composingRef.current = false; }}  // IME 종료
               onKeyDown={handleChatKeyDown}
+              disabled={isMuted}
             />
           </div>
         </div>
