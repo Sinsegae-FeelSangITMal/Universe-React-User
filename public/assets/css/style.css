@@ -3183,7 +3183,7 @@ hr {
 }
 
 .slider-height {
-    min-height: 900px;
+    min-height: 700px;
     background-repeat: no-repeat;
     background-position: center center;
     background-size: cover
@@ -3214,11 +3214,11 @@ hr {
 }
 
 .slider-bg1 {
-    background-image: url(../img/hero/h1_hero1.png)
+    background-image: url(../img/hero/hero1.jpg)
 }
 
 .slider-bg2 {
-    background-image: url(../img/hero/h1_hero2.png)
+    background-image: url(../img/hero/hero2.jpg)
 }
 
 .slider-bg3 {

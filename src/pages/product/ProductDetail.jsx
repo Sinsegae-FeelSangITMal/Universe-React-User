@@ -2,28 +2,38 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getProductDetail } from "../../utils/ProductApi";
+import { getMembership } from "../../utils/MembershipApi";
+import { useAuthStore } from "../../store/auth";
+import { addCart } from "../../utils/CartApi";
 
 const DUMMY_IMG = "/assets/img/gallery/bts_product_image.jpg";
-const DUMMY_LONG_IMG = "/assets/img/gallery/bts_long_image.jpg";
+const DUMMY_LONG_IMG = "/assets/img/dummyImg/bts_product1-detail.jpg";
 
 export default function ProductDetail() {
-  const { productId } = useParams(); 
+  const { productId } = useParams();
   const [detail, setDetail] = useState(null);
   const [currentImg, setCurrentImg] = useState(DUMMY_IMG);
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [activeTab, setActiveTab] = useState("detail"); // 'detail' | 'notice'
+  const [membership, setMembership] = useState();
+  const { user } = useAuthStore();
 
   const toKRW = (n) =>
     typeof n === "number" ? `₩${n.toLocaleString("ko-KR")}` : n ?? "";
 
+  // 최대 구매 수량 계산
   const maxQty = useMemo(() => {
     if (!detail) return 1;
-    const a = Number(detail.initialStock ?? 0);
-    const b = Number(detail.purchaseLimit ?? 0); // 0/음수면 제한 없음
-    const byLimit = b > 0 ? b : a > 0 ? a : 99;
-    return Math.max(1, byLimit);
+
+    const limit = Number(detail.purchaseLimit ?? 0);
+
+    // 음수 또는 0 → 제한 없음 (기본 99)
+    if (limit <= 0) return 99;
+
+    // 양수면 그 limit까지만 허용
+    return Math.max(1, limit);
   }, [detail]);
 
   useEffect(() => {
@@ -39,6 +49,7 @@ export default function ProductDetail() {
 
         const res = await getProductDetail(productId);
         const data = res?.data?.data ?? res?.data ?? null;
+        console.log(res.data.data);
         setDetail(data);
 
         // 메인 이미지 기본값 설정
@@ -53,12 +64,97 @@ export default function ProductDetail() {
     })();
   }, [productId]);
 
+  // 유저의 멤버십 정보 불러오기
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getMembership(user.userId);
+        setMembership(res.data.data);
+      } catch (e) {
+        console.error("멤버십 정보 불러오기 실패:", e);
+      }
+    })();
+  }, []);
+
+  // 발매일 검증 함수
+  const isNotReleasedYet = (detail) => {
+    if (!detail?.salesOpenAt) return false;
+    const openDate = new Date(detail.salesOpenAt);
+    const now = new Date();
+    return openDate > now; // 발매일이 미래면 true
+  };
+
+  // 멤버십 검증 함수
+  const isFanLimitedBlocked = (detail) => {
+    if (!detail) return false;
+
+    // 팬전용 상품인지 검사
+    if (detail.fanLimited) {
+      const today = new Date();
+
+      // 유저가 해당 아티스트 멤버십을 가지고 있는지 검사
+      const hasValidMembership = membership.some((m) => {
+        if (m.artistName !== detail.artistName) return false;
+        const start = new Date(m.startDate);
+        const end = new Date(m.endDate);
+        return today >= start && today <= end;
+      });
+
+      return !hasValidMembership; // 차단되면 true
+    }
+
+    return false; // 일반 상품은 항상 통과
+  };
+
+  // 장바구니 담기 (데모)
   const handleAddCart = async () => {
     if (!detail) return;
+
+    // 발매일 전이면 차단
+    if (isNotReleasedYet(detail)) {
+      alert("아직 발매되지 않은 상품입니다. 발매일 이후에 구매 가능합니다.");
+      return;
+    }
+
+    // 멤버십 전용 상품인데 멤버십이 없으면 차단
+    if (isFanLimitedBlocked(detail)) {
+      alert(`${detail.artistName} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
+      return;
+    }
+    
     try {
-      alert("장바구니에 담았습니다. (데모)");
+      const res = await addCart(user.userId, detail.id, qty);
+      if (res.data.success) {
+        alert("장바구니에 담았습니다!");
+      } else {
+        alert(res.data.message || "장바구니 담기 실패");
+      }
     } catch (e) {
-      alert("장바구니 담기 실패");
+      console.error("장바구니 추가 실패:", e.response);
+      alert(e.response.data.message);
+    }
+  };
+
+  // 구매하기 (데모)
+  const handlePurchase = async () => {
+    if (!detail) return;
+
+    // 발매일 전이면 차단
+    if (isNotReleasedYet(detail)) {
+      alert("아직 발매되지 않은 상품입니다. 발매일 이후에 구매 가능합니다.");
+      return;
+    }
+
+    // 멤버십 전용 상품인데 멤버십이 없으면 차단
+    if (isFanLimitedBlocked(detail)) {
+      alert(`${detail.artistName} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
+      return;
+    }
+
+    try {
+      alert("구매. (데모)");
+    } catch (e) {
+      alert("구매 실패");
     }
   };
 
@@ -77,7 +173,6 @@ export default function ProductDetail() {
     detail: description,
     salesOpenAt,
     fanLimited,
-    productStatus,
     mainImageUrl,
     detailImages = [],
   } = detail;
@@ -87,7 +182,7 @@ export default function ProductDetail() {
   return (
     <main>
       {/* breadcrumb */}
-      <div className="page-notification">
+      <div className="page-notification" style={{ marginBottom: 30 }}>
         <div className="container" style={{ maxWidth: 1140 }}>
           <div className="row">
             <div className="col-lg-12">
@@ -110,13 +205,13 @@ export default function ProductDetail() {
           <div className="col-lg-6 mb-4">
             <div
               className="d-flex align-items-center justify-content-center"
-              style={{ background: "#f3f3f3", borderRadius: 12, minHeight: 520 }}
+              style={{ border: "#edededff solid 2px", borderRadius: 12, minHeight: 520 }}
             >
               <img
                 src={currentImg || DUMMY_IMG}
                 alt={productName}
                 onError={(e) => (e.currentTarget.src = DUMMY_IMG)}
-                style={{ width: "88%", height: "auto", objectFit: "contain" }}
+                style={{ width: "100%", height: "auto", objectFit: "contain" }}
               />
             </div>
 
@@ -153,133 +248,143 @@ export default function ProductDetail() {
 
           {/* Right: 정보/구매 */}
           <div className="col-lg-6">
-            <div className="mb-2" style={{ color: "#666" }}>{artistName}</div>
-            <h3 className="mb-2" style={{ lineHeight: 1.3 }}>{productName}</h3>
+            <div className="mb-2" style={{ color: "#666", fontSize: "20px" }}>{artistName}</div>
+            <h3 className="mb-2" style={{ lineHeight: 1.3, fontSize: "25px" }}>{productName}</h3>
 
             {fanLimited && (
-              <div className="mb-2" style={{ color: "#7e5bef", fontSize: 13 }}>
-                소득공제 · 팬클럽 한정
+              <div className="mb-2" style={{ color: "#7e5bef", fontSize: 15 }}>
+                멤버십 전용 상품입니다
               </div>
             )}
 
-            <div className="mb-3" style={{ fontSize: 28, fontWeight: 800 }}>
+            <div className="mb-3" style={{ fontSize: "25px", fontWeight: 800 }}>
               {toKRW(price)}
             </div>
 
-            {salesOpenAt && (
-              <div className="mb-3" style={{ color: "#6a6a6a", fontSize: 14 }}>
-                최대 캐시 | {salesOpenAt}
+            {isNotReleasedYet(detail) && (
+              <div className="mb-3" style={{ color: "#7e5bef", fontSize: 15 }}>
+                발매 시작일 :　{salesOpenAt}
               </div>
             )}
 
-            {/* 옵션(단일 상품용) */}
-            <div className="card mb-3" style={{ borderRadius: 12 }}>
-              <div className="card-body">
-                <div className="mb-2" style={{ color: "#6a6a6a", fontSize: 14 }}>
-                  {productName}
-                </div>
-                <div className="d-flex align-items-center justify-content-between">
-                  <input
-                    type="number"
-                    min={1}
-                    max={maxQty}
-                    value={qty}
-                    onChange={(e) => {
-                      const n = Number(e.target.value || 1);
-                      setQty(Math.min(Math.max(isNaN(n) ? 1 : n, 1), maxQty));
-                    }}
-                    className="form-control"
-                    style={{ maxWidth: 120 }}
-                  />
-                  <div style={{ fontWeight: 700 }}>{toKRW(price)}</div>
-                </div>
-              </div>
+            {/* 구매 제한 */}
+            <div className="mb-3" style={{ color: "#6a6a6a", fontSize: 15, marginTop: 20 }}>
+              최대 {maxQty}개까지 구매 가능
             </div>
 
-            {/* 구매 제한/상태 */}
-            <div className="mb-3" style={{ color: "#6a6a6a", fontSize: 14 }}>
-              1개 선택 · 최대 {maxQty}개까지 구매할 수 있습니다
-              {productStatus && <> · 상태: <b>{String(productStatus)}</b></>}
+            {/* 옵션(단일 상품용) */}<div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                overflow: "hidden",
+                userSelect: "none",
+                marginBottom: 20,
+              }}
+            >
+              {/* - 버튼 */}
+              <button
+                onClick={() => setQty((prev) => Math.max(1, prev - 1))}
+                style={{
+                  width: "100%",
+                  height: 36,
+                  padding: "0 16px",
+                  border: "none",
+                  background: "#f6f6f6",
+                  fontSize: 18,
+                  color: "#555",
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              >
+                −
+              </button>
+
+              {/* 입력창 */}
+              <input
+                type="number"
+                value={qty}
+                min={1}
+                max={maxQty}
+                onChange={(e) => {
+                  let n = Number(e.target.value);
+                  if (isNaN(n) || n < 1) n = 1;
+                  if (n > maxQty) n = maxQty;
+                  setQty(n);
+                }}
+                style={{
+                  width: 60,
+                  height: 36,
+                  textAlign: "center",
+                  border: "none",
+                  borderLeft: "1px solid #ddd",
+                  borderRight: "1px solid #ddd",
+                  outline: "none",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  background: "#fff",
+                  color: "#333",
+                }}
+                onWheel={(e) => e.target.blur()} // 스크롤로 값 바뀌는 것 방지
+              />
+
+
+              {/* + 버튼 */}
+              <button
+                onClick={() => setQty((prev) => Math.min(maxQty, prev + 1))}
+                style={{
+                  width: "100%",
+                  height: 36,
+                  padding: "0 12px",
+                  border: "none",
+                  background: "#f6f6f6",
+                  fontSize: 18,
+                  color: "#555",
+                  cursor: "pointer",
+                  outline: "none",
+                }}
+              >
+                ＋
+              </button>
             </div>
 
             {/* 합계 */}
             <div className="d-flex align-items-center justify-content-between mb-3">
               <div style={{ color: "#6a6a6a" }}>합계</div>
-              <div style={{ fontSize: 22, fontWeight: 800 }}>
+              <div style={{ fontSize: "33px", fontWeight: 800 }}>
                 {toKRW((price || 0) * qty)}
               </div>
             </div>
 
             {/* 버튼 */}
             <div className="d-flex gap-3">
-              <button className="border-btn flex-grow-1" onClick={handleAddCart}>
+              <button
+                className="border-btn flex-grow-1"
+                style={{ width: "100px", margin: "10px 5px 10px 0px", }}
+                onClick={handleAddCart}>
                 장바구니 추가
               </button>
               <button
                 className="btn flex-grow-1"
-                style={{ background: "#b084db", color: "#fff" }}
-                onClick={() => alert("구매하기 (데모)")}
+                style={{ width: "100px", margin: "10px 0px 10px 0px", background: "#b084db", color: "#fff" }}
+                onClick={handlePurchase}
               >
                 구매하기
               </button>
             </div>
 
-           {/* 간단 설명 */}
+            {/* 간단 설명 */}
             {description && (
-            <div className="mt-4">
-                <div className="mb-2" style={{ fontWeight: 700, fontSize: 16, color: "#222" }}>
-                상품 설명
+              <div className="mt-4">
+                <div className="mb-2" style={{ fontWeight: 700, fontSize: 17, color: "#222", marginTop: 30 }}>
+                  상품 설명
                 </div>
                 <div style={{ color: "#444", lineHeight: 1.8, whiteSpace: "pre-line" }}>
-                {description}
+                  {description}
                 </div>
-            </div>
+              </div>
             )}
-            {/* 프로모션 카드 (샘플) */}
-            <div className="mt-4">
-            <div
-                className="card shadow-sm"
-                style={{ border: "none", borderRadius: 12, overflow: "hidden" }}
-            >
-                <div className="row g-0 align-items-center">
-                <div className="col-md-4">
-                    <img
-                    src="/assets/img/gallery/promo_dummy.jpg"  // 더미 이미지 경로
-                    alt="프로모션"
-                    onError={(e) => (e.currentTarget.src = "/assets/img/gallery/arrival8.png")}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                </div>
-                <div className="col-md-8">
-                    <div className="card-body">
-                    <div className="d-flex align-items-center gap-2 mb-1">
-                        <span
-                        className="badge"
-                        style={{ background: "#00c6cf", color: "#fff", fontWeight: 700 }}
-                        >
-                        PROMO
-                        </span>
-                        <span style={{ color: "#666", fontSize: 13 }}>한정 기간</span>
-                    </div>
-                    <h5 className="card-title mb-2" style={{ fontWeight: 800 }}>
-                        시즌 굿즈 세트 구매 시 10% OFF
-                    </h5>
-                    <p className="card-text mb-3" style={{ color: "#555" }}>
-                        오늘 주문하면 즉시 적용! 일부 품목 제외 / 재고 소진 시 종료됩니다.
-                    </p>
-                    <div className="d-flex gap-2">
-                        <a href="#" className="btn btn-sm" style={{ background: "#111", color: "#fff" }}>
-                        자세히 보기
-                        </a>
-                        <a href="#" className="border-btn btn-sm">
-                        지금 쇼핑하기
-                        </a>
-                    </div>
-                    </div>
-                </div>
-                </div>
-            </div>
-            </div>
 
           </div>
         </div>
@@ -339,13 +444,14 @@ export default function ProductDetail() {
                   width: "100%",
                   height: "auto",
                   objectFit: "contain",
+                  marginBottom: 60
                 }}
               />
             </div>
           ) : (
             // 유의사항(샘플)
             <div className="mx-auto" style={{ maxWidth: 900 }}>
-              <ul style={{ lineHeight: 1.9, color: "#555" }}>
+              <ul style={{ lineHeight: 1.9, color: "#555", marginBottom: 60 }}>
                 <li>본 상품의 색상과 구성은 모니터 해상도 및 촬영 환경에 따라 차이가 있을 수 있습니다.</li>
                 <li>구매 제한 수량을 초과한 주문은 사전 통보 없이 취소될 수 있습니다.</li>
                 <li>개봉 후 단순 변심에 의한 교환/환불은 불가합니다. (불량은 수령 후 7일 이내 문의)</li>

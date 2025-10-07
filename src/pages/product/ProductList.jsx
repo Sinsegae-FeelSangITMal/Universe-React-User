@@ -1,13 +1,16 @@
 // src/pages/ProductList.jsx
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getProductList } from "../../utils/ProductApi";
 import { getCategories } from "../../utils/CategoryApi";
+import { getArtist } from "../../utils/ArtistApi";
+import { useNavigate } from "react-router-dom";
 
 const DUMMY_IMG = "/assets/img/gallery/arrival1.png";
 
 export default function ProductList() {
   const { artistId } = useParams();
+  const [artist, setArtist] = useState();
 
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -20,8 +23,22 @@ export default function ProductList() {
   });
   const [loading, setLoading] = useState(true);
 
+  const navigate = useNavigate();
+
   const toKRW = (n) =>
     typeof n === "number" ? n.toLocaleString("ko-KR") : n ?? "";
+
+  // 아티스트 정보 불러오기
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getArtist(artistId);
+        setArtist(res.data);
+      } catch (e) {
+        console.error("아티스트 정보 불러오기 실패:", e);
+      }
+    })();
+  }, [artistId]);
 
   // 카테고리 불러오기
   useEffect(() => {
@@ -65,16 +82,16 @@ export default function ProductList() {
   return (
     <main>
       {/* breadcrumb */}
-      <div className="page-notification">
+      <div className="page-notification" style={{ marginBottom: 30 }}>
         <div className="container">
           <div className="row">
             <div className="col-lg-12">
               <nav aria-label="breadcrumb">
                 <ol className="breadcrumb justify-content-center">
-                  <li className="breadcrumb-item"><a href="/">Home</a></li>
+                  <li className="breadcrumb-item"><a href="/main">Home</a></li>
                   <li className="breadcrumb-item"><a href="#">Shop</a></li>
                   <li className="breadcrumb-item active" aria-current="page">
-                    Artist #{artistId}
+                    {artist ? `${artist.name}` : ""}
                   </li>
                 </ol>
               </nav>
@@ -89,7 +106,7 @@ export default function ProductList() {
           <div className="row">
             <div className="col-xl-7 col-lg-8 col-md-10">
               <div className="section-tittle mb-50">
-                <h2>Shop with us</h2>
+                <h2  style={{ minWidth: "1000px" }}>Shop with {artist ? `${artist.name}` : ""}</h2>
                 <p>{pageInfo.totalElements.toLocaleString()} items found</p>
               </div>
             </div>
@@ -103,6 +120,7 @@ export default function ProductList() {
                   {/* Category Select */}
                   <div className="select-job-items2">
                     <select
+                      className="form-select product"
                       value={selectedCategoryId}
                       onChange={(e) => {
                         setSelectedCategoryId(e.target.value || "");
@@ -133,26 +151,44 @@ export default function ProductList() {
                     ) : (
                       products.map((p) => (
                         <div key={p.id} className="col-xl-4 col-lg-4 col-md-6 col-sm-6">
-                          <div className="single-new-arrival mb-50 text-center">
+                          <div
+                            className="single-new-arrival mb-50 text-center">
                             <div className="popular-img">
+                              <Link to={`/shop/product/${p.id}`}>
                               <img
                                 src={p.mainImageUrl || DUMMY_IMG}
                                 alt={p.productName}
-                                style={{ width: "100%", height: 260, objectFit: "cover" }}
+                                style={{ width: "100%", height: 260, objectFit: "cover", cursor: "pointer" }}
                                 onError={(e) => (e.currentTarget.src = DUMMY_IMG)}
                               />
-                              <div className="favorit-items">
-                                <img src="/assets/img/gallery/favorit-card.png" alt="" />
-                              </div>
+                              </Link>
                             </div>
                             <div className="popular-caption">
-                              <h3><a href={`/shop/product/${p.id}`}>{p.productName}</a></h3>
-                              
+                              <Link to={`/shop/product/${p.id}`}>
+                              <h3
+                                style={{ cursor: "pointer" }}>
+                                {p.productName}
+                              </h3>
+                              </Link>
                               <span>₩ {toKRW(p.price)}</span>
-                              <div className="mt-2" style={{ fontSize: 12, color: "#666" }}>
-                                <div>등록일 : {p.registDate}</div>
-                                <div>시작 발매시간 : {p.openDate ? p.openDate.replace("T", " ") : ""}</div>
-                            </div>
+                              <div className="mt-2" style={{ fontSize: 12, color: "#B084DC" }}>
+                                {/* 발매 예정인 상품만 발매 시작 시간 띄우기 */}
+                                {p.openDate && new Date(p.openDate) > new Date() && (
+                                  <div>발매 시작 시간 : {p.openDate ? p.openDate.replace("T", " ") : ""}</div>
+                                )}
+                              </div>
+                              {p.fan && (
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#B084DC",
+                                    marginTop: "5px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  [ 멤버십 전용 상품 ]
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
