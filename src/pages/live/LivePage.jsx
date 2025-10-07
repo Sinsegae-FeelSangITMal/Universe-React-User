@@ -1,7 +1,6 @@
-// LivePage.jsx
 import { useState, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import * as mediasoupClient from 'mediasoup-client';
 import SockJS from 'sockjs-client';
 import { Client as StompClient } from '@stomp/stompjs';
@@ -17,6 +16,7 @@ const APP_SEND        = (id) => `/app/live/${id ?? 'global'}`;
 
 const LivePage = () => {
   const { artistId } = useParams();
+  const navigate = useNavigate();
   const { user, accessToken } = useAuthStore(); // 전역 스토어에서 유저/토큰
 
   // 로그인된 사용자 정보
@@ -109,6 +109,7 @@ const LivePage = () => {
       },
       reconnectDelay: 4000,
       onConnect: (frame) => {
+        // 1. 공용 채팅 구독
         client.subscribe(TOPIC_SUBSCRIBE(artistId), (f) => {
           try {
             const body = JSON.parse(f.body);
@@ -131,8 +132,27 @@ const LivePage = () => {
             ]);
           }
         });
+
+        // 2. 개인 시스템 메시지 구독 (Mute/Ban 알림용)
+        client.subscribe('/user/queue/system', (message) => {
+          try {
+            const payload = JSON.parse(message.body);
+            alert(payload.message); // Mute와 Ban 모두 일단 alert를 띄움
+
+            // Ban인 경우에만 메인 페이지로 리다이렉트
+            if (payload.code === 'BANNED') {
+              navigate('/');
+            }
+          } catch (e) {
+            // JSON 파싱 실패 시 일반 텍스트로 처리
+            alert(message.body);
+          }
+        });
       },
-      onStompError: () => {},
+      onStompError: (frame) => {
+        console.error('Broker reported error: ' + frame.headers['message']);
+        console.error('Additional details: ' + frame.body);
+      },
       onWebSocketClose: () => {},
       debug: () => {},
     });
@@ -144,7 +164,7 @@ const LivePage = () => {
       try { client.deactivate(); } catch {}
       stompRef.current = null;
     };
-  }, [artistId, accessToken]);
+  }, [artistId, accessToken, navigate]);
 
   // ===== 유틸 =====
   const formatTime = (isoString) => {
