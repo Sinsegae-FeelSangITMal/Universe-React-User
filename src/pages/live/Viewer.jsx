@@ -11,23 +11,31 @@ const SERVER_URL = 'http://192.168.10.101:4000';
 const Viewer = () => {
   const remoteVideoRef = useRef(null);
   const [isStreamAvailable, setIsStreamAvailable] = useState(false);
+  const [isConsuming, setIsConsuming] = useState(false);
 
   useEffect(() => {
     const socketInstance = io(SERVER_URL);
+    let hasAttempted = false;
 
-    // 컴포넌트가 처음 로드될 때 스트림 수신을 시도합니다.                                                                                                                                              
     socketInstance.on('connect', () => {
-      consumeStream(socketInstance);
+      if (!hasAttempted) {
+        hasAttempted = true;
+        consumeStream(socketInstance);
+      }
     });
 
-    // 컴포넌트가 사라질 때 소켓 연결을 완전히 해제합니다.                                                                                                                                              
-    return () => {
-      socketInstance.disconnect();
-    };
+    return () => socketInstance.disconnect();
   }, []);
 
   // 서버로부터 스트림을 받아오는(consume) 함수                                                                                                                                                         
   const consumeStream = async (socketInstance) => {
+
+    if (isConsuming) {
+      console.warn("⚠️ 이미 consumeStream 실행 중이거나 연결되어 있습니다.");
+      return;
+    }
+    setIsConsuming(true);
+
     try {
       const routerRtpCapabilities = await new Promise((resolve) => {
         socketInstance.emit('getRouterRtpCapabilities', resolve);
@@ -57,8 +65,10 @@ const Viewer = () => {
 
         // 스트림이 없으므로, 'new-producer' 이벤트를 한번만 기다려서 다시 시도합니다.                                                                                                                  
         socketInstance.once('new-producer', () => {
-          console.log('새로운 방송이 시작되었습니다. 다시 시청을 시도합니다...');
-          consumeStream(socketInstance);
+          console.log('새 방송 감지 → 1초 후 재시도');
+          setTimeout(() => {
+            if (!isStreamAvailable) consumeStream(socketInstance);
+          }, 1000);
         });
         return;
       }
@@ -77,6 +87,8 @@ const Viewer = () => {
     } catch (error) {
       console.error('스트림 수신 실패:', error);
       setIsStreamAvailable(false);
+    } finally {
+      setIsConsuming(false);
     }
   };
 
