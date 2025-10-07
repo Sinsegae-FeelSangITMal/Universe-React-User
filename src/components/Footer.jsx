@@ -10,7 +10,7 @@ export default function Footer(){
                         <div className="single-footer-caption mb-30">
                             {/* <!-- logo --> */}
                             <div className="footer-logo mb-35">
-                            <a href="index.html"><img src="assets/img/logo/footLogo.png" alt="" style={{width: "150px"}}/></a>
+                            <a href="index.html"><img src="/assets/img/logo/footLogo.png" alt="" style={{width: "150px"}}/></a>
                         </div>
                         <div className="footer-tittle">
                             <div className="footer-pera">
