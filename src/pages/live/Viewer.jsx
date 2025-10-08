@@ -14,7 +14,7 @@ import { getProduct } from "../../utils/ProductApi";
 import { getPromotion } from "../../utils/PromotionApi";
 
 const SUBTITLE_API_URL = 'http://localhost:8080';
-const SERVER_URL = 'http://192.168.10.101:4000';
+const SERVER_URL = 'http://172.20.10.10:4000';
 const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL || '/ws';
 const STOMP_BROKER_URL = import.meta.env.VITE_STOMP_BROKER_URL || 'ws://localhost:8888/ws';
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
