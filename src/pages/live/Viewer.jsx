@@ -319,6 +319,7 @@ const Viewer = () => {
       }
     };
 
+
     socket.on("connect", setupMediasoup);
     socket.on("producer-closed", () => {
       setStreamStatus("ended");
