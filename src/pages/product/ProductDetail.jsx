@@ -5,8 +5,10 @@ import { getProductDetail } from "../../utils/ProductApi";
 import { getMembership } from "../../utils/MembershipApi";
 import { useAuthStore } from "../../store/auth";
 import { addCart } from "../../utils/CartApi";
+import { getCart } from "../../utils/CartApi";
+import toast from "react-hot-toast";
 
-const DUMMY_IMG = "/assets/img/gallery/bts_product_image.jpg";
+const DUMMY_IMG = "/assets/img/dummyImg/bts_product1-1.jpg";
 const DUMMY_LONG_IMG = "/assets/img/dummyImg/bts_product1-detail.jpg";
 
 export default function ProductDetail() {
@@ -19,6 +21,16 @@ export default function ProductDetail() {
   const [activeTab, setActiveTab] = useState("detail"); // 'detail' | 'notice'
   const [membership, setMembership] = useState();
   const { user } = useAuthStore();
+  const [cart, setCart] = useState(null);
+
+  // 유저의 장바구니 정보 불러오기
+  useEffect(() => {
+    if (user?.userId) {
+      getCart(user.userId)
+        .then(res => setCart(res.data?.data || []))
+        .catch(e => console.error("장바구니 정보 불러오기 실패:", e));
+    }
+  }, [user?.userId]);
 
   const toKRW = (n) =>
     typeof n === "number" ? `₩${n.toLocaleString("ko-KR")}` : n ?? "";
@@ -106,55 +118,74 @@ export default function ProductDetail() {
     return false; // 일반 상품은 항상 통과
   };
 
-  // 장바구니 담기 (데모)
+  // 장바구니 담기
   const handleAddCart = async () => {
-    if (!detail) return;
-
-    // 발매일 전이면 차단
-    if (isNotReleasedYet(detail)) {
-      alert("아직 발매되지 않은 상품입니다. 발매일 이후에 구매 가능합니다.");
+    if (!detail || !cart) {
+      toast.error("상품 또는 장바구니 정보를 불러오는 중입니다.");
       return;
     }
 
-    // 멤버십 전용 상품인데 멤버십이 없으면 차단
+    // 기존 유효성 검사 (발매일, 멤버십)
+    if (isNotReleasedYet(detail)) {
+      toast.error("아직 발매되지 않은 상품입니다. 발매일 이후에 구매 가능합니다.");
+      return;
+    }
     if (isFanLimitedBlocked(detail)) {
-      alert(`${detail.artistName} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
+      toast.error(`${detail.artistName} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
+      return;
+    }
+
+    // 장바구니 수량 기반 구매 제한 검사
+    const itemInCart = cart.find(item => item.productId === detail.id);
+    const currentQtyInCart = itemInCart ? itemInCart.qty : 0;
+    const allowedToAdd = maxQty - currentQtyInCart;
+
+    if (qty > allowedToAdd) {
+      if (allowedToAdd <= 0) {
+        toast.error(`이 상품은 최대 ${maxQty}개까지 구매 가능하며, 이미 장바구니에 최대 수량이 담겨있습니다.`);
+      } else {
+        toast.error(`이 상품은 최대 ${maxQty}개까지 구매 가능합니다. ${allowedToAdd}개 더 담을 수 있습니다.`);
+      }
       return;
     }
     
     try {
       const res = await addCart(user.userId, detail.id, qty);
       if (res.data.success) {
-        alert("장바구니에 담았습니다!");
+        toast.success("장바구니에 담았습니다!");
+        // 장바구니 상태 최신화
+        getCart(user.userId).then(res => setCart(res.data?.data || []));
       } else {
-        alert(res.data.message || "장바구니 담기 실패");
+        toast.error(res.data.message || "장바구니 담기 실패");
       }
     } catch (e) {
       console.error("장바구니 추가 실패:", e.response);
-      alert(e.response.data.message);
+      toast.error(e.response?.data?.message || "오류가 발생했습니다.");
     }
   };
 
-  // 구매하기 (데모)
+
+  // 구매하기
   const handlePurchase = async () => {
     if (!detail) return;
 
     // 발매일 전이면 차단
     if (isNotReleasedYet(detail)) {
-      alert("아직 발매되지 않은 상품입니다. 발매일 이후에 구매 가능합니다.");
+      toast.error("아직 발매되지 않은 상품입니다. 발매일 이후에 구매 가능합니다.");
       return;
     }
 
     // 멤버십 전용 상품인데 멤버십이 없으면 차단
     if (isFanLimitedBlocked(detail)) {
-      alert(`${detail.artistName} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
+      toast.error(`${detail.artistName} 멤버십에 가입한 회원만 이용할 수 있습니다.`);
       return;
     }
 
     try {
-      alert("구매. (데모)");
+      // 실제 구매 로직은 미구현
+      toast.success("구매하기 기능은 데모입니다.");
     } catch (e) {
-      alert("구매 실패");
+      toast.error("구매 실패");
     }
   };
 

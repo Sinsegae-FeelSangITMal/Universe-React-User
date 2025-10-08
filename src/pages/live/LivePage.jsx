@@ -317,7 +317,7 @@ const LivePage = () => {
 
   return (
     <div className="live-page-container">
-      <Toaster position="bottom-center" />
+
       {/* 상단 타이틀 */}
       <div className="live-page-header">
         <h2 className="live-page-artist">

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import MainPage from "./pages/main/MainPage";
 import CartPage from "./pages/mypage/CartPage";
 import MembershipPage from "./pages/mypage/MembershipPage";
@@ -22,6 +23,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Toaster position="bottom-center" />
       <Routes>
         {/* Navbar 없는 그룹 */}
         <Route element={<WithoutLayout />}>
