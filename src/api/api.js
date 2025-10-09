@@ -6,7 +6,7 @@ import { useAuthStore } from "../store/auth";
  * accessToken을 담지 않는 요청  (회원가입, 로그인, 로그아웃 등)
  */
 export const publicApi = axios.create({
-  baseURL: "http://localhost:7777/api",
+  baseURL: `${import.meta.env.VITE_API_URL}/api`,
   withCredentials: true,
 });
 
@@ -18,7 +18,7 @@ export const publicApi = axios.create({
  */
 
 export const api = axios.create({
-    baseURL: "http://localhost:7777/api",   //후에 gateway 주소로 변경 
+    baseURL: `${import.meta.env.VITE_API_URL}/api`,   //후에 gateway 주소로 변경 
     withCredentials: true,   // axios의 기본 동작은 쿠키나 인증정보를 자동으로 안보냄. 쿠키에 들은 refreshToken을 보내기 위해 옵션 설정 
 });
 
