@@ -71,6 +71,12 @@ export default function ArtistIntroPage() {
     if (live.fanOnly) {
       const today = new Date();
 
+      // membership이 null/undefined/빈 배열인 경우
+      if (!membership || membership.length === 0) {
+        alert(`${artist.name} 멤버십 전용 라이브입니다.`);
+        return; // 이동 막기
+      }
+
       // 유저가 해당 아티스트 멤버십을 가지고 있는지 검사
       const hasValidMembership = membership.some((m) => {
         if (m.artistName !== artist.name) return false;
@@ -88,6 +94,7 @@ export default function ArtistIntroPage() {
     // 통과하면 이동
     navigate(`/artists/${artist.id}/live/${live.id}`);
   };
+
 
 
   return (
@@ -230,77 +237,129 @@ export default function ArtistIntroPage() {
 
       </div>
 
-
       {/* 예정된 라이브 영역 -> 이미지, 예정된 시간 어떻게 알릴지*/}
       <div style={{ marginBottom: 120 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>예정된 LIVE</div>
         </div>
         <div style={{ display: "flex", gap: 24 }}>
-          {waitingStreams.map((live) => ( // 예정된 라이브도 3개를 안넘는다고 가정하고 짰음
-            // 라이브 카드 
-            <div key={live.id} style={{
-              position: "relative",
-              overflow: "hidden",
-            }}>
-
-              <img src={live.thumb} alt={live.title} style={{
-                width: "350px",
-                height: "230px",
-                objectFit: "cover",
-                borderRadius: 20,
-              }} />
-
-
+          {waitingStreams.map((live) => (
+            <div
+              key={live.id}
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                const date = new Date(live.time);
+                const formatted = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+                alert(`📺 "${live.title}" 라이브는 ${formatted}에 시작될 예정입니다.`);
+              }}
+            >
+              <img
+                src={live.thumb}
+                alt={live.title}
+                style={{
+                  width: "350px",
+                  height: "230px",
+                  objectFit: "cover",
+                  borderRadius: 20,
+                }}
+              />
               <div style={{ padding: 12 }}>
-                <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{live.title}</div>
+                <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>
+                  {live.title}
+                </div>
                 <div style={{ color: "#aaa", fontSize: 13 }}>{live.time}</div>
               </div>
+
+              {/* 🔒 멤버십 전용 뱃지 (예정) */}
+              {live.fanOnly && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "rgba(188, 0, 0, 1)",
+                    marginLeft: "10px",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                  }}
+                >
+                  🔒 멤버십 전용 라이브
+                </div>
+              )}
             </div>
           ))}
         </div>
-
       </div>
 
-      {/* 종료된 라이브(다시보기) 영역 -> 총 방송 시간 보여줘야 됨 + 방송일자 보여줄지,  */}
+
+      {/* 종료된 라이브(다시보기) 영역 */}
       <div style={{ marginBottom: 120 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>다시보기</div>
-          <button onClick={() => navigate(`/artists/${artistId}/vods`)} style={{
-            background: "none",
-            border: "none",
-            color: "#000000ff",
-            fontSize: 16,
-            display: "flex",
-            alignItems: "center",
-            cursor: "pointer"
-          }}>
+          <button
+            onClick={() => navigate(`/artists/${artistId}/vods`)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#000000ff",
+              fontSize: 16,
+              display: "flex",
+              alignItems: "center",
+              cursor: "pointer",
+            }}
+          >
             더보기 <span style={{ marginLeft: 4, fontSize: 18 }}>▶</span>
           </button>
         </div>
+
         <div style={{ display: "flex", gap: 24 }}>
-          {endedStreams.slice(0, 3).map((live) => ( //라이브 영상 3개만 보여주기 
-            // 라이브 카드 
-            <div key={live.id} style={{
-              position: "relative",
-              overflow: "hidden",
-            }}>
-
-              <img src={live.thumb} alt={live.title} style={{
-                width: "350px",
-                height: "230px",
-                objectFit: "cover",
-                borderRadius: 20,
-              }} />
-
+          {endedStreams.slice(0, 3).map((live) => (
+            <div
+              key={live.id}
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                cursor: "pointer",
+              }}
+              // 🔁 라이브/다시보기 공통 멤버십 체크 + 이동
+              onClick={() => handleProductClick(live)}
+            >
+              <img
+                src={live.thumb}
+                alt={live.title}
+                style={{
+                  width: "350px",
+                  height: "230px",
+                  objectFit: "cover",
+                  borderRadius: 20,
+                }}
+              />
               <div style={{ padding: 12 }}>
-                <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>{live.title}</div>
+                <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>
+                  {live.title}
+                </div>
                 <div style={{ color: "#aaa", fontSize: 13 }}>{live.time}</div>
               </div>
+
+              {/* 🔒 멤버십 전용 뱃지 (다시보기) */}
+              {live.fanOnly && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "rgba(188, 0, 0, 1)",
+                    marginLeft: "10px",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                  }}
+                >
+                  🔒 멤버십 전용 라이브
+                </div>
+              )}
             </div>
           ))}
         </div>
-
       </div>
 
       {/* SNS + 스토어 */}
