@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const URL = "http://localhost:7777/api/orders";
+const URL = `${import.meta.env.VITE_API_URL}/api/orders`;
 
 // 주문서 보내기
 export const submitOrder = (data) => axios.post(`${URL}`, data);

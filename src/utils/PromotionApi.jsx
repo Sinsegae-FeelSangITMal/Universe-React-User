@@ -1,7 +1,7 @@
 // utils/PromotionApi.jsx
 import axios from "axios";
 
-const BASE_URL = "http://localhost:7777/api/ent";
+const BASE_URL = `${import.meta.env.VITE_API_URL}/api/ent`;
 
 // 아티스트별 프로모션 조회
 export const getPromotionsByArtist = (artistId) => {

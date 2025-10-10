@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // 라이브 관련 공통 URL
-const URL = "http://localhost:7777/api/ent/streams";
+const URL = `${import.meta.env.VITE_API_URL}/api/ent/streams`;
 
 // 라이브 목록
 export const getStreams = () => axios.get(URL);

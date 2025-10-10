@@ -13,10 +13,10 @@ import { getStreamProductsByStream } from "../../utils/StreamProductApi";
 import { getProduct } from "../../utils/ProductApi";
 import { getPromotion } from "../../utils/PromotionApi";
 
-const SUBTITLE_API_URL = 'http://localhost:8080';
-const SERVER_URL = 'http://172.20.10.10:4000';
+const SUBTITLE_API_URL = import.meta.env.VITE_LIVE_URL;
+const SERVER_URL = import.meta.env.VITE_MEDIASOUP_HOST;
 const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL || '/ws';
-const STOMP_BROKER_URL = import.meta.env.VITE_STOMP_BROKER_URL || 'ws://localhost:8888/ws';
+const STOMP_BROKER_URL = import.meta.env.VITE_STOMP_BROKER_URL || `${import.meta.env.VITE_WS_URL}/ws`;
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
 const APP_SEND = (id) => `/app/live/${id ?? 'global'}`;
 
@@ -441,7 +441,7 @@ const Viewer = () => {
           }}>
             <div style={{ flex: '0 0 200px' }}>
               <img
-                src={promotion.img ? `http://localhost:7777${promotion.img}` : 'https://via.placeholder.com/200x200?text=No+Image'}
+                src={promotion.img ? `${import.meta.env.VITE_API_URL}${promotion.img}` : 'https://via.placeholder.com/200x200?text=No+Image'}
                 alt={promotion.name}
                 style={{
                   width: '100%', height: '200px', borderRadius: '10px', objectFit: 'cover',
@@ -490,7 +490,7 @@ const Viewer = () => {
           {productDetails.length > 0 ? productDetails.map((p) => (
             <div key={p.id} className="live-page-product-card live-page-product-card-wide">
               <img
-                src={p.img ? `http://localhost:7777${p.img}` : '/assets/img/placeholder/240.png'}
+                src={p.img ? `${import.meta.env.VITE_API_URL}${p.img}` : '/assets/img/placeholder/240.png'}
                 alt={p.name}
                 className="live-page-product-img"
               />
