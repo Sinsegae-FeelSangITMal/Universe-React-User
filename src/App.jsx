@@ -19,6 +19,7 @@ import Viewer from "./pages/live/Viewer";
 import ArtistIntroPage from "./pages/artist/ArtistIntroPage";
 import ArtistVODPage from "./pages/artist/ArtistVODPage";
 import ScrollToTop from "./components/ScrollToTop";
+import Merge from "./pages/live/Merge";
 
 function App() {
 
@@ -47,7 +48,8 @@ function App() {
 
           {/* 위: 영상 완료 / 아래: 채팅 완료 (병합 및 테스트 전) */}
           {/* <Route path="/artists/:artistId/live/:liveId" element={<Viewer />} /> */}
-          <Route path="/live/:artistId" element={<LivePage />} />
+          <Route path="/artists/:artistId/live/:liveId" element={<Merge />} />
+          {/* <Route path="/live/:artistId" element={<LivePage />} /> */}
 
           {/* 로그인 필요한 페이지 */}
           <Route path="/order" element={  //결제 전 주문 정보
