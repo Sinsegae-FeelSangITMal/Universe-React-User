@@ -8,7 +8,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth';
 
 // ===== 서버 엔드포인트 =====
-const SERVER_URL  = 'http://192.168.60.30:4000'; // mediasoup signaling
+const SERVER_URL  = '/socket.io'; // mediasoup signaling
 const CHAT_WS_URL = '/ws';                       // Vite proxy → chat-server:8888
 
 // artistId 기반 토픽

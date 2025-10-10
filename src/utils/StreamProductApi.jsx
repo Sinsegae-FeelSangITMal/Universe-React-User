@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const URL = "http://localhost:7777/api/ent/stream-products"; // 필요 시 환경변수로 분리
+const URL = `${import.meta.env.VITE_API_URL}/api/ent/stream-products`;
 
 // 전체 조회
 export const getStreamProducts = async () => {

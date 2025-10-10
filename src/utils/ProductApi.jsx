@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:7777/api";
+const BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 axios.defaults.baseURL = "/api"; // 프록시
 
 export const getProductDetail = (id) => axios.get(`/ent/products/${id}`);
