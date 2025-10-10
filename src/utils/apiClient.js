@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useAuthStore } from '../store/auth';
 
 const apiClient = axios.create({
-  baseURL: '/', // Vite proxy를 사용하도록 상대 경로로 설정
+  baseURL: '/', // Vite proxy를 통해 게이트웨이로 요청
 });
 
 // 요청 인터셉터 (Request Interceptor)

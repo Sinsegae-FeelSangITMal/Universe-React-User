@@ -7,9 +7,9 @@ import { Client as StompClient } from '@stomp/stompjs';
 import toast, { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth';
 
-// ===== 서버 엔드포인트 =====
-const SERVER_URL  = 'http://192.168.60.30:4000'; // mediasoup signaling
-const CHAT_WS_URL = '/ws';                       // Vite proxy → chat-server:8888
+// ===== 서버 엔드포인트 (Vite Proxy 사용) =====
+const SERVER_URL = '/'; // mediasoup/socket.io signaling (루트 경로로 요청)
+const CHAT_WS_URL = '/ws'; // Chat WebSocket
 
 // artistId 기반 토픽
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
