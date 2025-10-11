@@ -120,10 +120,10 @@ export default function ProductDetail() {
 
   // 장바구니 담기
   const handleAddCart = async () => {
-    if (!detail || !cart) {
+    /*if (!detail || !cart) {
       toast.error("상품 또는 장바구니 정보를 불러오는 중입니다.");
       return;
-    }
+    }*/
 
     // 기존 유효성 검사 (발매일, 멤버십)
     if (isNotReleasedYet(detail)) {
