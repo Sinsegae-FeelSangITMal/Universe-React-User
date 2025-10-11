@@ -76,106 +76,106 @@ export default function Merge() {
     v.playsInline = true;
     // 초기 play 킥(프레임 들어오면 자연스럽게 흐름 이어짐)
     const p = v.play?.();
-    if (p && p.catch) p.catch(()=>{});
+    if (p && p.catch) p.catch(() => { });
   }, []); // ← 최초 1회
 
 
- // =========================
-// Video helpers (가장 중요) — 이 블록만 교체
-// =========================
+  // =========================
+  // Video helpers (가장 중요) — 이 블록만 교체
+  // =========================
 
-// ✅ srcObject를 불필요하게 끊지 않도록 “조건부” 할당만
-function ensureAssigned(video, ms) {
-  if (!video) return;
-  if (video.srcObject !== ms) {
-    video.srcObject = ms;
+  // ✅ srcObject를 불필요하게 끊지 않도록 “조건부” 할당만
+  function ensureAssigned(video, ms) {
+    if (!video) return;
+    if (video.srcObject !== ms) {
+      video.srcObject = ms;
+    }
   }
-}
 
-function tryPlay(video) {
-  if (!video) return;
-  // 자동재생 친화
-  video.muted = true;
-  video.playsInline = true;
-  const p = video.play?.();
-  if (p && p.catch) p.catch(() => {});
-}
-
-// kind 스위치
-function attachTrack(track, kind) {
-  if (kind === 'video') attachVideoTrack(track);
-  else if (kind === 'audio') attachAudioTrack(track);
-  else console.warn('[attachTrack] unknown kind:', kind);
-}
-
-// ✅ 비디오 트랙
-function attachVideoTrack(track) {
-  const video = remoteVideoRef.current;
-  if (!video) return;
-
-  // 1) 빈 스트림이 이미 video에 꽂혀있음 (1번 변경에서 처리)
-  const ms = (msRef.current instanceof MediaStream) ? msRef.current : new MediaStream();
-
-  // 2) 기존 비디오 트랙만 교체 (stop은 선택, "removeTrack"만 하고 stop은 생략 추천)
-  ms.getVideoTracks().forEach(t => { try { ms.removeTrack(t); } catch {} });
-
-  // 3) 새 비디오 트랙 추가
-  track.enabled = true; // 혹시 모를 disable 방지
-  ms.addTrack(track);
-  msRef.current = ms;
-
-  // ❗여기서 srcObject 재할당/비우기/ load() 절대 금지 (이미 1회 꽂아둔 상태)
-  // ensureAssigned(video, ms)도 호출할 필요 없음
-
-  // 4) play 킥
-  const kick = () => {
+  function tryPlay(video) {
+    if (!video) return;
+    // 자동재생 친화
+    video.muted = true;
+    video.playsInline = true;
     const p = video.play?.();
-    if (p && p.catch) p.catch(()=>{});
-  };
-
-  if (track.muted) {
-    try { track.addEventListener('unmute', kick, { once: true }); } catch {}
-  } else {
-    kick();
+    if (p && p.catch) p.catch(() => { });
   }
 
-  // 보강
-  video.addEventListener('loadeddata', kick, { once: true });
-  video.addEventListener('canplay',    kick, { once: true });
-  if ('requestVideoFrameCallback' in video) {
-    // @ts-ignore
-    video.requestVideoFrameCallback(() => kick());
+  // kind 스위치
+  function attachTrack(track, kind) {
+    if (kind === 'video') attachVideoTrack(track);
+    else if (kind === 'audio') attachAudioTrack(track);
+    else console.warn('[attachTrack] unknown kind:', kind);
   }
 
-  // 디버그
-  const s = video.srcObject;
-  console.log('[VideoState]', {
-    videoTracks: s ? s.getVideoTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
-    audioTracks: s ? s.getAudioTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
-    paused: video.paused,
-    readyState: video.readyState
-  });
-}
+  // ✅ 비디오 트랙
+  function attachVideoTrack(track) {
+    const video = remoteVideoRef.current;
+    if (!video) return;
 
-// ✅ 오디오 트랙
-function attachAudioTrack(track) {
-  const video = remoteVideoRef.current;
-  if (!video) return;
+    // 1) 빈 스트림이 이미 video에 꽂혀있음 (1번 변경에서 처리)
+    const ms = (msRef.current instanceof MediaStream) ? msRef.current : new MediaStream();
 
-  const ms = (msRef.current instanceof MediaStream) ? msRef.current : new MediaStream();
+    // 2) 기존 비디오 트랙만 교체 (stop은 선택, "removeTrack"만 하고 stop은 생략 추천)
+    ms.getVideoTracks().forEach(t => { try { ms.removeTrack(t); } catch { } });
 
-  if (!ms.getAudioTracks().some(t => t.id === track.id)) {
-    track.enabled = true;
+    // 3) 새 비디오 트랙 추가
+    track.enabled = true; // 혹시 모를 disable 방지
     ms.addTrack(track);
-  }
-  msRef.current = ms;
+    msRef.current = ms;
 
-  // ❗여기도 srcObject 재할당 절대 금지 (이미 1회 꽂힘)
-  // 필요시 플레이 킥만
-  const p = video.play?.();
-  if (p && p.catch) p.catch(()=>{});
-}
-// =========================
+    // ❗여기서 srcObject 재할당/비우기/ load() 절대 금지 (이미 1회 꽂아둔 상태)
+    // ensureAssigned(video, ms)도 호출할 필요 없음
+
+    // 4) play 킥
+    const kick = () => {
+      const p = video.play?.();
+      if (p && p.catch) p.catch(() => { });
+    };
+
+    if (track.muted) {
+      try { track.addEventListener('unmute', kick, { once: true }); } catch { }
+    } else {
+      kick();
+    }
+
+    // 보강
+    video.addEventListener('loadeddata', kick, { once: true });
+    video.addEventListener('canplay', kick, { once: true });
+    if ('requestVideoFrameCallback' in video) {
+      // @ts-ignore
+      video.requestVideoFrameCallback(() => kick());
+    }
+
+    // 디버그
+    const s = video.srcObject;
+    console.log('[VideoState]', {
+      videoTracks: s ? s.getVideoTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
+      audioTracks: s ? s.getAudioTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
+      paused: video.paused,
+      readyState: video.readyState
+    });
+  }
+
+  // ✅ 오디오 트랙
+  function attachAudioTrack(track) {
+    const video = remoteVideoRef.current;
+    if (!video) return;
+
+    const ms = (msRef.current instanceof MediaStream) ? msRef.current : new MediaStream();
+
+    if (!ms.getAudioTracks().some(t => t.id === track.id)) {
+      track.enabled = true;
+      ms.addTrack(track);
+    }
+    msRef.current = ms;
+
+    // ❗여기도 srcObject 재할당 절대 금지 (이미 1회 꽂힘)
+    // 필요시 플레이 킥만
+    const p = video.play?.();
+    if (p && p.catch) p.catch(() => { });
+  }
+  // =========================
 
   // ===== 채팅 자동 스크롤 =====
   useEffect(() => {
@@ -248,10 +248,11 @@ function attachAudioTrack(track) {
         client.subscribe(`/queue/system-${myUserId}`, (message) => {
           try {
             const payload = JSON.parse(message.body);
-            
-                        if (payload.code === 'BANNED') {
-                          setIsBanned(true);
-                        } else if (payload.code === 'MUTED') {                toast(payload.message, { icon: '🤫' });
+
+            if (payload.code === 'BANNED') {
+              setIsBanned(true);
+            } else if (payload.code === 'MUTED') {
+              toast(payload.message, { icon: '🤫' });
               setIsMuted(true);
               setMuteSecondsLeft(30);
             }
@@ -271,12 +272,61 @@ function attachAudioTrack(track) {
     client.activate();
     stompRef.current = client;
     return () => {
-      try { client.deactivate(); } catch {}
+      try { client.deactivate(); } catch { }
       stompRef.current = null;
     };
   }, [artistId, accessToken, navigate]);
 
-  // ===== 소켓/스트림 (Mediasoup) =====
+  // 🧠 1️⃣ 자막 STOMP 구독 (Spring Boot)
+  useEffect(() => {
+    if (!liveId) return;
+
+    const SUBTITLE_API_URL = import.meta.env.VITE_LIVE_URL; // Viewer.jsx 방식
+    const sockUrl = `${SUBTITLE_API_URL}/ws-subtitle`;
+
+    console.log(`[Subtitle] Connecting STOMP for liveId=${liveId}`);
+    console.log("[Subtitle] SockJS connecting to:", sockUrl);
+
+    const sock = new SockJS(sockUrl);
+    const subtitleClient = new StompClient({
+      webSocketFactory: () => sock,
+      reconnectDelay: 4000,
+      debug: (str) => console.log("[Subtitle DEBUG]", str),
+      onConnect: () => {
+        console.log('[Subtitle] STOMP connected');
+        subtitleClient.subscribe(`/topic/subtitles/${liveId}`, (frame) => {
+          try {
+            const payload = JSON.parse(frame.body);
+            console.log('[Subtitle] Received:', payload);
+            setSubtitle(payload);
+            if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
+            subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
+          } catch (err) {
+            console.error('자막 파싱 실패', err);
+          }
+        });
+      },
+      onStompError: (frame) => {
+        console.error('[Subtitle] Broker error:', frame.headers['message'], frame.body);
+      },
+      onWebSocketError: (evt) => {
+        console.error('[Subtitle] WebSocket error:', evt);
+      },
+      onWebSocketClose: (evt) => {
+        console.warn('[Subtitle] WebSocket closed:', evt?.code, evt?.reason);
+      },
+    });
+
+    subtitleClient.activate();
+
+    return () => {
+      try { subtitleClient.deactivate(); } catch { }
+    };
+  }, [liveId]);
+
+
+
+  // 🎥 2️⃣ Mediasoup (socket.io)
   useEffect(() => {
     if (!liveId) {
       console.warn('[Live] liveId가 없어 소켓 연결을 건너뜁니다.');
@@ -389,7 +439,7 @@ function attachAudioTrack(track) {
 
             // 3) (가능하면) 첫 키프레임 요청 - 비디오 품질/초기프레임 앞당김
             if (consumer.requestKeyFrame) {
-              try { await consumer.requestKeyFrame(); } catch {}
+              try { await consumer.requestKeyFrame(); } catch { }
             }
 
             // 4) 서버 ack (서버에서 뭔가 할 게 없으면 무해)
@@ -408,7 +458,7 @@ function attachAudioTrack(track) {
 
           // 트랙이 이미 unmuted면 즉시, 아니면 첫 unmute 때 실행
           if (track.muted) {
-            try { track.addEventListener?.('unmute', () => { void attachNow(); }, { once: true }); } catch {}
+            try { track.addEventListener?.('unmute', () => { void attachNow(); }, { once: true }); } catch { }
           } else {
             void attachNow();
           }
@@ -458,8 +508,8 @@ function attachAudioTrack(track) {
 
     return () => {
       console.log('[Live] cleanup: disconnect');
-      try { socket.disconnect(); } catch {}
-      try { recvTransportRef.current?.close(); } catch {}
+      try { socket.disconnect(); } catch { }
+      try { recvTransportRef.current?.close(); } catch { }
       const v = remoteVideoRef.current;
       if (v?.srcObject) {
         v.srcObject.getTracks().forEach((t) => t.stop());
@@ -544,70 +594,70 @@ function attachAudioTrack(track) {
     }
   }, [myUserId, artistId, navigate]);
 
-    // ===== 유틸 =====
-    const formatTime = (isoString) => {
-      if (!isoString) return '';
-      const date = new Date(isoString);
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      const ampm = hours >= 12 ? '오후' : '오전';
-      const formattedHours = hours % 12 || 12;
-      return `${ampm} ${formattedHours}:${minutes.toString().padStart(2, '0')}`;
-    };
-  
-    // ===== 채팅 입력 =====
-    const handleChatInput = (e) => setChatInput(e.target.value);
-  
-    const handleChatKeyDown = (e) => {
-      // IME(한글) 조합 중이면 엔터 무시 (크롬 마지막 글자 중복 방지)
-      if (e.key === 'Enter') {
-        if (composingRef.current || e.nativeEvent.isComposing) return;
-        handleChatSend();
-      }
-    };
+  // ===== 유틸 =====
+  const formatTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? '오후' : '오전';
+    const formattedHours = hours % 12 || 12;
+    return `${ampm} ${formattedHours}:${minutes.toString().padStart(2, '0')}`;
+  };
 
-    const handleChatSend = () => {
-      const text = chatInput.trim();
-      if (!text) return;
-  
-      if (!stompRef.current?.connected) {
-        toast.error('채팅 서버와 연결되지 않았습니다.');
-        return;
-      }
-  
-      // 서버가 토큰으로 사용자 식별 → 내용만 보냄
-      const payload = { content: text };
-      stompRef.current.publish({
-        destination: APP_SEND(artistId),
-        body: JSON.stringify(payload),
-      });
-  
-      setChatInput('');
-    };
+  // ===== 채팅 입력 =====
+  const handleChatInput = (e) => setChatInput(e.target.value);
 
- // ===== 디자인 그대로 렌더 =====
- if (isBanned) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f8f9fa' }}>
-      <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>🚫 접근이 차단되었습니다 🚫</h2>
-      <p style={{ fontSize: '1.2rem', color: '#6c757d', marginBottom: '2rem' }}>이 라이브에 대한 접근 권한이 없습니다.</p>
-      <button 
-        onClick={() => navigate('/main')}
-        style={{
-          padding: '10px 20px',
-          fontSize: '1rem',
-          color: '#fff',
-          backgroundColor: '#007bff',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer'
-        }}
-      >
-        메인으로 돌아가기
-      </button>
-    </div>
-  );
-}
+  const handleChatKeyDown = (e) => {
+    // IME(한글) 조합 중이면 엔터 무시 (크롬 마지막 글자 중복 방지)
+    if (e.key === 'Enter') {
+      if (composingRef.current || e.nativeEvent.isComposing) return;
+      handleChatSend();
+    }
+  };
+
+  const handleChatSend = () => {
+    const text = chatInput.trim();
+    if (!text) return;
+
+    if (!stompRef.current?.connected) {
+      toast.error('채팅 서버와 연결되지 않았습니다.');
+      return;
+    }
+
+    // 서버가 토큰으로 사용자 식별 → 내용만 보냄
+    const payload = { content: text };
+    stompRef.current.publish({
+      destination: APP_SEND(artistId),
+      body: JSON.stringify(payload),
+    });
+
+    setChatInput('');
+  };
+
+  // ===== 디자인 그대로 렌더 =====
+  if (isBanned) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f8f9fa' }}>
+        <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>🚫 접근이 차단되었습니다 🚫</h2>
+        <p style={{ fontSize: '1.2rem', color: '#6c757d', marginBottom: '2rem' }}>이 라이브에 대한 접근 권한이 없습니다.</p>
+        <button
+          onClick={() => navigate('/main')}
+          style={{
+            padding: '10px 20px',
+            fontSize: '1rem',
+            color: '#fff',
+            backgroundColor: '#007bff',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          메인으로 돌아가기
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="live-page-container">
@@ -630,15 +680,15 @@ function attachAudioTrack(track) {
             onResize={(e) => console.log('[Video] resize', e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
             onLoadedMetadata={(e) => {
               console.log('[Video] loadedmetadata, readyState=', e.currentTarget.readyState);
-              e.currentTarget.play?.().catch(()=>{});
+              e.currentTarget.play?.().catch(() => { });
             }}
             onLoadedData={(e) => {
               console.log('[Video] loadeddata');
-              e.currentTarget.play?.().catch(()=>{});
+              e.currentTarget.play?.().catch(() => { });
             }}
             onCanPlay={(e) => {
               console.log('[Video] canplay');
-              e.currentTarget.play?.().catch(()=>{});
+              e.currentTarget.play?.().catch(() => { });
             }}
             onClick={(e) => {
               const v = e.currentTarget;
@@ -684,11 +734,11 @@ function attachAudioTrack(track) {
 
               // 서버 닉네임 우선 사용
               const name =
-              msg.type === 'admin'
-                ? '시스템'
-                : isMine
-                  ? (msg.nickname || sender)
-                  : (msg.nickname || '익명');
+                msg.type === 'admin'
+                  ? '시스템'
+                  : isMine
+                    ? (msg.nickname || sender)
+                    : (msg.nickname || '익명');
 
               const time = formatTime(msg.createdAt);
 

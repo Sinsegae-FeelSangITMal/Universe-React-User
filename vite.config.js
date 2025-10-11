@@ -11,13 +11,24 @@ export default ({ mode }) => {
       port: 4444,
       open: true,
       proxy: {
-        // Spring REST
+        // --- 일반 API (7777)
         '/api': { target: env.VITE_API_URL, changeOrigin: true },
         '/images': { target: env.VITE_API_URL, changeOrigin: true },
+
+        // --- 채팅 서버 (8888)
         '/ws': { target: env.VITE_CHAT_URL, changeOrigin: true, ws: true }, // Chat 서버
         '/chatapi': { target: env.VITE_CHAT_URL, changeOrigin: true }, // Chat 서버 API
 
-        // mediasoup socket.io
+        // 🔹 자막 WebSocket (Spring Live 서비스, 8080)
+        // '/ws-subtitle'로 시작하는 모든 요청을 target으로 전달
+        '/ws-subtitle': {
+          target: env.VITE_LIVE_URL,
+          changeOrigin: true,
+          ws: true,
+          secure: false,
+        },
+
+        // --- mediasoup (4000)
         '/socket.io': {
           target: env.VITE_MEDIASOUP_HOST,
           changeOrigin: true,
