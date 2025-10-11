@@ -6,8 +6,8 @@ import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 import SockJS from 'sockjs-client';
 import { Client as StompClient } from '@stomp/stompjs';
 
-const SUBTITLE_API_URL = import.meta.env.VITE_LIVE_URL; // 자막 처리 서버
-const SERVER_URL = import.meta.env.VITE_MEDIASOUP_HOST;
+const SUBTITLE_API_URL = 'http://localhost:8080'; // 자막 처리 서버
+const SERVER_URL = 'http://192.168.56.1:4000';
 const CHAT_WS_URL = '/ws';                       // Vite proxy → chat-server:8888
 
 // artistId 기반 토픽

@@ -19,9 +19,11 @@ export default ({ mode }) => {
 
         // mediasoup socket.io
         '/socket.io': {
-          target: env.VITE_MEDIASOUP_HOST,
+          target: 'http://localhost:4000',
+          // target: env.VITE_MEDIASOUP_HOST, // 예: http://localhost:4000
           changeOrigin: true,
           ws: true,
+          secure: false,          // 로컬 self-signed 대비
         },
       },
     },
