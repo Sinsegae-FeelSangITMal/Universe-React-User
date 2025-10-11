@@ -10,11 +10,11 @@ import { Client as StompClient } from '@stomp/stompjs';
 // 🔽 API 유틸
 import { getStream } from "../../utils/StreamApi";
 import { getStreamProductsByStream } from "../../utils/StreamProductApi";
-import { getProduct } from "../../utils/ProductApi";
 import { getPromotion } from "../../utils/PromotionApi";
 
 const SUBTITLE_API_URL = import.meta.env.VITE_LIVE_URL;
 const SERVER_URL = import.meta.env.VITE_MEDIASOUP_HOST;
+
 const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL || '/ws';
 const STOMP_BROKER_URL = import.meta.env.VITE_STOMP_BROKER_URL || `${import.meta.env.VITE_WS_URL}/ws`;
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
@@ -35,7 +35,7 @@ const Viewer = () => {
   const stompRef = useRef(null);
 
   // ===== States =====
-  const [streamStatus, setStreamStatus] = useState('waiting');
+  const [streamStatus, setStreamStatus] = useState('waiting'); // 'waiting' | 'streaming' | 'ended' | 'vod'
   const [isStreamAvailable, setIsStreamAvailable] = useState(false);
   const [chatList, setChatList] = useState([]);
   const [chatInput, setChatInput] = useState('');
@@ -60,6 +60,26 @@ const Viewer = () => {
   // 사용자 ID
   const myUserId = useRef(Number(localStorage.getItem('userId') || 0));
 
+  // ===== 유틸: <video>를 VOD 모드로 전환 =====
+  const setVideoToVod = (url) => {
+    const videoEl = remoteVideoRef.current;
+    if (!videoEl) return;
+
+    // 실시간 트랙 제거
+    if (videoEl.srcObject) {
+      try { videoEl.srcObject.getTracks?.().forEach(t => t.stop?.()); } catch { }
+      videoEl.srcObject = null;
+    }
+
+    // 녹화 파일 세팅
+    videoEl.crossOrigin = "anonymous";
+    videoEl.src = url;
+    videoEl.playsInline = true;
+    videoEl.load();
+
+    console.log("✅ [VOD] URL set:", url);
+  };
+
   // 채팅 자동 스크롤
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -67,9 +87,7 @@ const Viewer = () => {
     }
   }, [chatList]);
 
-  // ===== 프로모션/상품 불러오기 =====
-  const pick = (...cands) => cands.find(v => v !== undefined && v !== null);
-
+  // ===== 스트림/프로모션/상품 로드 =====
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -77,19 +95,41 @@ const Viewer = () => {
         const streamResp = await getStream(liveId);
         const s = streamResp?.data?.data || streamResp?.data || {};
 
-        setStreamInfo({
+        const normalized = {
           id: s.id,
           title: s.title,
           artistName: s.artistName,
           time: s.time,
           endTime: s.endTime,
-          status: s.status,
-        });
+          status: s.status,   // "WAITING" | "LIVE" | "ENDED"
+          record: s.record,   // 녹화 파일 경로(있으면 VOD)
+        };
+        setStreamInfo(normalized);
+        console.log("🎥 Stream 정보:", normalized);
 
+        // 2) VOD 모드로 전환 (record가 존재하면)
+        if (normalized.record) {
+          // 저장 경로 → 정적 서버로 호스트 교체
+          const vodUrl = normalized.record
+            .replace(/^http:\/\/localhost:5555/i, 'http://localhost:4000')
+            .replace(/^http:\/\/127\.0\.0\.1:5555/i, 'http://localhost:4000')
+            .replace(/^http:\/\/192\.168\.10\.101:5555/i, 'http://172.20.10.10:4000');
+          setVideoToVod(vodUrl);
+          setIsStreamAvailable(true);
+          setStreamStatus('vod');
+        } else {
+          // record가 없으면 상태에 따라 안내
+          if (normalized.status === 'LIVE') {
+            setStreamStatus('waiting'); // 실시간 연결은 아래 useEffect에서
+          } else if (normalized.status === 'WAITING') {
+            setStreamStatus('waiting');
+          } else if (normalized.status === 'ENDED') {
+            setStreamStatus('ended');
+          }
+        }
+
+        // 3) 프로모션
         const promoId = s?.promotionId ?? s?.promotion_id ?? s?.PR_ID;
-        console.log("liveId :", liveId, "promoId :", promoId);
-
-        // 2) 프로모션
         if (promoId) {
           const pr = await getPromotion(promoId);
           const d = pr?.data?.data || pr?.data || {};
@@ -108,13 +148,9 @@ const Viewer = () => {
           setPromotion(null);
         }
 
-        // 3) 스트림-상품 매핑 (★ 여기만 핵심 수정)
+        // 4) 스트림-상품 매핑
         const spResp = await getStreamProductsByStream(liveId);
-        const spList = Array.isArray(spResp?.data?.data)
-          ? spResp.data.data
-          : [];
-
-        // 4) productResponse 그대로 매핑
+        const spList = Array.isArray(spResp?.data?.data) ? spResp.data.data : [];
         const products = spList.map(sp => {
           const p = sp.product || {};
           return {
@@ -130,11 +166,10 @@ const Viewer = () => {
             option: ["수량 선택", "1개", "2개", "3개"],
           };
         });
-
         setProductDetails(products);
-        console.log("products :", products);
+        console.log("🛒 products:", products);
       } catch (err) {
-        console.error("프로모션/상품 불러오기 실패:", err);
+        console.error("❌ 데이터 불러오기 실패:", err);
         setPromotion(null);
         setProductDetails([]);
       }
@@ -143,9 +178,7 @@ const Viewer = () => {
     fetchData();
   }, [liveId]);
 
-
-
-  // ===== STOMP / SockJS =====
+  // ===== STOMP / SockJS (채팅) =====
   useEffect(() => {
     console.log('[chat] connect →', CHAT_WS_URL, 'topic:', TOPIC_SUBSCRIBE(artistId));
 
@@ -248,8 +281,14 @@ const Viewer = () => {
     setChatInput('');
   };
 
-  // ===== 소켓/스트림 =====
+  // ===== Mediasoup 소켓/스트림 =====
   useEffect(() => {
+    // ✅ VOD 모드면 실시간 스트림 연결 생략
+    if (streamInfo?.record || streamStatus === 'vod') {
+      console.log('📁 VOD 모드: mediasoup 연결/consume 스킵');
+      return;
+    }
+
     const socket = io(SERVER_URL, { query: { role: "viewer" } });
     socketRef.current = socket;
     socket.emit("join-live", { liveId });
@@ -319,7 +358,6 @@ const Viewer = () => {
       }
     };
 
-
     socket.on("connect", setupMediasoup);
     socket.on("producer-closed", () => {
       setStreamStatus("ended");
@@ -333,7 +371,7 @@ const Viewer = () => {
       socket.disconnect();
       recvTransportRef.current?.close();
     };
-  }, [liveId]);
+  }, [liveId, streamInfo?.record, streamStatus]);
 
   // ===== UI =====
   return (
@@ -355,8 +393,20 @@ const Viewer = () => {
       {/* 영상 + 채팅 */}
       <div className="live-page-stream-section">
         <div className="live-page-video-wrapper" style={{ position: "relative" }}>
-          <div className="viewer-count-badge">👀 {viewerCount}명 시청중</div>
-          <video ref={remoteVideoRef} autoPlay muted className="live-page-video" />
+          {streamStatus === 'streaming' && (
+            <div className="viewer-count-badge">👀 {viewerCount}명 시청중</div>
+          )}
+
+
+          {/* 🔊 VOD일 땐 음소거 해제/컨트롤 노출, 라이브일 땐 자동재생/음소거 */}
+          <video
+            ref={remoteVideoRef}
+            autoPlay={streamStatus !== 'vod'}
+            muted={streamStatus !== 'vod'}
+            controls={streamStatus === 'vod'}
+            className="live-page-video"
+          />
+
           {!isStreamAvailable && streamStatus === 'waiting' && (
             <p className="live-page-waiting">방송 시작을 기다리는 중...</p>
           )}
@@ -437,7 +487,7 @@ const Viewer = () => {
             border: '1px solid #eee',
             borderRadius: '12px',
             background: 'linear-gradient(180deg, #fafafa 0%, #fff 100%)',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
           }}>
             <div style={{ flex: '0 0 200px' }}>
               <img
