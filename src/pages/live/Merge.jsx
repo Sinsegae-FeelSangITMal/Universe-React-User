@@ -14,10 +14,10 @@ import { getPromotion } from "../../utils/PromotionApi";
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 
 // ---- Endpoints (vite proxy 기준) ----
-const SERVER_URL = '/';
-const SOCKET_PATH = '/socket.io';
-const CHAT_API_BASE_URL = '/chatapi';
-const CHAT_WS_URL = '/ws';
+const SERVER_URL = '/'; // Connect to the same host, will be routed by Gateway
+const CHAT_API_BASE_URL = '/chatapi'; // Routed by Gateway
+const MAIN_API_URL = '/api'; // Routed by Gateway
+const CHAT_WS_URL = '/ws'; // Routed by Gateway
 
 // ---- STOMP Topics ----
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
