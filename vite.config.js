@@ -33,7 +33,6 @@ export default ({ mode }) => {
           target: env.VITE_MEDIASOUP_HOST,
           changeOrigin: true,
           ws: true,
-          secure: false,          // 로컬 self-signed 대비
         },
       },
     },
