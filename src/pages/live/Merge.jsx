@@ -50,7 +50,7 @@ export default function Merge() {
   const [muteSecondsLeft, setMuteSecondsLeft] = useState(0);
   const [isBanned, setIsBanned] = useState(false);
 
-  const [streamStatus, setStreamStatus] = useState('waiting'); // waiting | streaming | ended
+  const [streamStatus, setStreamStatus] = useState('waiting'); // waiting | streaming | ended | vod
   const [isStreamAvailable, setIsStreamAvailable] = useState(false);
   const [subtitle, setSubtitle] = useState(null);
   const [selectedLang, setSelectedLang] = useState('ko');
@@ -61,6 +61,34 @@ export default function Merge() {
   const [productDetails, setProductDetails] = useState([]);
 
   const myUserId = user?.userId || 0;
+
+  // 🔹 VOD 전환 헬퍼
+  const setVideoToVod = (recordPath) => {
+    const videoEl = remoteVideoRef.current;
+    if (!videoEl) return;
+
+    // 실시간 트랙 정리
+    if (videoEl.srcObject) {
+      try { videoEl.srcObject.getTracks?.().forEach((t) => t.stop?.()); } catch { }
+      videoEl.srcObject = null;
+    }
+
+    // 절대/상대 경로 대응
+    const base = import.meta.env.VITE_API_URL || '';
+    const src = recordPath?.startsWith('http')
+      ? recordPath
+      : `${base}${recordPath || ''}`;
+
+    videoEl.crossOrigin = 'anonymous';
+    videoEl.src = src;
+    videoEl.controls = true;
+    videoEl.muted = false;
+    videoEl.playsInline = true;
+    try { videoEl.load(); } catch { }
+
+    setIsStreamAvailable(true);
+    setStreamStatus('vod');
+  };
 
   // Merge.jsx 상단 helpers 근처에 이미 msRef가 있으니, 아래 effect를 추가:
   useEffect(() => {
@@ -191,6 +219,22 @@ export default function Merge() {
         const streamResp = await getStream(liveId);
         const s = streamResp?.data?.data || streamResp?.data || {};
         setStreamInfo({ title: s?.title, artistName: s?.artistName });
+
+        // 🔹 스트림 상태/녹화에 따라 VOD 모드 전환
+        const status = (s?.srStatus || s?.status || '').toString().toUpperCase();
+        const record = s?.record || s?.srRecord;
+        if (record && (status === 'ENDED' || status === 'END' || status === 'COMPLETED')) {
+          setVideoToVod(record);
+        } else {
+          // 녹화가 없거나 라이브 중이면 대기/라이브 상태는 mediasoup effect에서 처리
+          if (status === 'LIVE') {
+            setStreamStatus('waiting');
+          } else if (status === 'WAITING') {
+            setStreamStatus('waiting');
+          } else if (status === 'ENDED') {
+            setStreamStatus('ended');
+          }
+        }
 
         const promoId = s?.promotionId ?? s?.promotion_id ?? s?.PR_ID;
         if (promoId) {
@@ -330,6 +374,11 @@ export default function Merge() {
   useEffect(() => {
     if (!liveId) {
       console.warn('[Live] liveId가 없어 소켓 연결을 건너뜁니다.');
+      return;
+    }
+    // 🔹 VOD 모드일 경우 실시간 소비를 건너뜀
+    if (streamStatus === 'vod') {
+      console.log('📁 VOD 모드: mediasoup 연결/consume 스킵');
       return;
     }
     if (initOnceRef.current) return;
@@ -494,7 +543,7 @@ export default function Merge() {
 
     socket.on('connect', setupMediasoup);
 
-    socket.on('producer-closed', () => {
+    socket.on('producer-closed', async () => {
       setStreamStatus('ended');
       setIsStreamAvailable(false);
       const v = remoteVideoRef.current;
@@ -504,6 +553,18 @@ export default function Merge() {
       }
       msRef.current = null;
       setSubtitle(null);
+
+      // 🔹 방송 종료 시 서버에서 녹화 경로가 생겼는지 재조회 후 VOD 전환 시도
+      try {
+        const streamResp = await getStream(liveId);
+        const s = streamResp?.data?.data || streamResp?.data || {};
+        const record = s?.record || s?.srRecord;
+        if (record) {
+          setVideoToVod(record);
+        }
+      } catch (e) {
+        console.warn('종료 후 VOD 전환 재조회 실패:', e);
+      }
     });
 
     return () => {
@@ -521,7 +582,7 @@ export default function Merge() {
         subtitleTimerRef.current = null;
       }
     };
-  }, [liveId]);
+  }, [liveId, streamStatus]);
 
   // ===== Mute 타이머 =====
   useEffect(() => {
@@ -635,6 +696,136 @@ export default function Merge() {
     setChatInput('');
   };
 
+  // ===== 공통 스타일(프로모션/상품 섹션 통일) =====
+  const styles = {
+    section: {
+      background: '#fff',
+      borderRadius: 12,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+      padding: 20,
+      marginTop: 30
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: 800,
+      color: '#222',
+      margin: 0,
+      paddingBottom: 12,
+      borderBottom: '2px solid #eee',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    },
+    grid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+      gap: 18,
+      paddingTop: 16
+    },
+    card: {
+      border: '1px solid #eee',
+      borderRadius: 12,
+      background: 'linear-gradient(180deg, #fafafa 0%, #fff 100%)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+    },
+    cardHover: {
+      transform: 'translateY(-4px)',
+      boxShadow: '0 6px 16px rgba(0,0,0,0.10)',
+    },
+    imgWrap: {
+      width: '100%',
+      height: 180,
+      background: '#f2f2f2',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    img: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover'
+    },
+    body: {
+      padding: 14,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8
+    },
+    name: {
+      fontSize: 16,
+      fontWeight: 700,
+      color: '#222',
+      lineHeight: 1.35
+    },
+    desc: {
+      fontSize: 13,
+      color: '#666',
+      lineHeight: 1.5,
+      height: 38,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis'
+    },
+    metaRow: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 4
+    },
+    price: {
+      fontSize: 16,
+      fontWeight: 800,
+      color: '#111'
+    },
+    badge: {
+      fontSize: 12,
+      padding: '3px 8px',
+      borderRadius: 999,
+      background: '#eef2ff',
+      color: '#4f46e5',
+      fontWeight: 700
+    },
+    actions: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 8,
+      padding: '0 14px 14px 14px'
+    },
+    btnOutline: {
+      border: '1px solid #734ADE',
+      background: 'transparent',
+      color: '#734ADE',
+      borderRadius: 10,
+      fontWeight: 700,
+      padding: '10px 12px',
+      cursor: 'pointer'
+    },
+    btnFilled: {
+      border: 'none',
+      background: '#734ADE',
+      color: '#fff',
+      borderRadius: 10,
+      fontWeight: 800,
+      padding: '10px 12px',
+      cursor: 'pointer'
+    },
+    // 프로모션 전용(폭이 넓은 카드)
+    promoGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+      gap: 18,
+      paddingTop: 16
+    },
+    promoImgWrap: {
+      width: '100%',
+      height: 220,
+      background: '#f2f2ff'
+    }
+  };
+
   // ===== 디자인 그대로 렌더 =====
   if (isBanned) {
     return (
@@ -673,8 +864,9 @@ export default function Merge() {
           <div className="viewer-count-badge">👀 {viewerCount}명 접속 중</div>
           <video
             ref={remoteVideoRef}
-            autoPlay
-            muted
+            autoPlay={streamStatus !== 'vod'}
+            muted={streamStatus !== 'vod'}
+            controls={streamStatus === 'vod'}
             playsInline
             className="live-page-video"
             onResize={(e) => console.log('[Video] resize', e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
@@ -691,8 +883,11 @@ export default function Merge() {
               e.currentTarget.play?.().catch(() => { });
             }}
             onClick={(e) => {
+              // 라이브 자동재생 실패 시 사용자가 클릭하면 재생
               const v = e.currentTarget;
-              v.muted = false; // 클릭으로 음소거 해제 → 정책 우회
+              if (streamStatus !== 'vod') {
+                v.muted = true;
+              }
               v.play?.().catch(err => console.error('사용자 클릭 재생 실패:', err));
             }}
             style={{
@@ -810,40 +1005,112 @@ export default function Merge() {
         </div>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', marginTop: '30px' }}>
-        <h3 style={{ borderBottom: '2px solid #eee', paddingBottom: '10px', marginBottom: '20px' }}>
-          🎁 프로모션 상품
-        </h3>
-        {promotion ? <div>{promotion.name}</div> : <div>등록된 프로모션이 없습니다.</div>}
+      {/* ===== 프로모션 & 상품: 통일된 디자인 ===== */}
+      <div style={styles.section}>
+        <h3 style={styles.title}>🎁 프로모션 상품</h3>
+        <div style={styles.promoGrid}>
+          {promotion ? (
+            <div
+              style={styles.card}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = styles.cardHover.transform;
+                e.currentTarget.style.boxShadow = styles.cardHover.boxShadow;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = '';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+              }}
+            >
+              <div style={{ ...styles.imgWrap, ...styles.promoImgWrap }}>
+                <img
+                  src={promotion.img ? `${import.meta.env.VITE_API_URL}${promotion.img}` : '/assets/img/placeholder/240.png'}
+                  alt={promotion.name}
+                  style={styles.img}
+                />
+              </div>
+              <div style={styles.body}>
+                <div style={styles.name}>{promotion.name}</div>
+                <div style={styles.desc}>{promotion.description || '등록된 설명이 없습니다.'}</div>
+                <div style={styles.metaRow}>
+                  <span style={styles.badge}>
+                    재고 {promotion.stockQty ?? 0}개
+                  </span>
+                  {promotion.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
+                </div>
+                {promotion.coupon && (
+                  <div style={{ ...styles.metaRow, marginTop: 6 }}>
+                    <span style={{ fontSize: 13, color: '#444' }}>쿠폰 코드</span>
+                    <strong style={{ fontSize: 14, color: '#111' }}>{promotion.coupon}</strong>
+                  </div>
+                )}
+              </div>
+              <div style={styles.actions}>
+                <button style={styles.btnOutline}>자세히 보기</button>
+                <button style={styles.btnFilled}>구매하기</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 30, textAlign: 'center', color: '#777' }}>
+              등록된 프로모션이 없습니다.
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="live-page-products-section">
-        <h3 className="live-page-products-title">라이브 상품 목록</h3>
-        <div className="live-page-product-list">
+      <div style={styles.section}>
+        <h3 style={styles.title}>🛒 라이브 상품 목록</h3>
+        <div className="live-page-product-list" style={styles.grid}>
           {productDetails.length > 0 ? (
             productDetails.map((p) => (
-              <div key={p.id} className="live-page-product-card live-page-product-card-wide">
-                <img
-                  src={p.img ? `${CHAT_API_BASE_URL}${p.img}` : '/assets/img/placeholder/240.png'}
-                  alt={p.name}
-                  className="live-page-product-img"
-                />
-                <div className="live-page-product-info">
-                  <div className="live-page-product-name">{p.name}</div>
+              <div
+                key={p.id}
+                className="live-page-product-card live-page-product-card-wide"
+                style={styles.card}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = styles.cardHover.transform;
+                  e.currentTarget.style.boxShadow = styles.cardHover.boxShadow;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = '';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                }}
+              >
+                <div style={styles.imgWrap}>
+                  <img
+                    src={p.img ? `${import.meta.env.VITE_API_URL}${p.img}` : '/assets/img/placeholder/240.png'}
+                    alt={p.name}
+                    className="live-page-product-img"
+                    style={styles.img}
+                  />
                 </div>
-                <div className="live-page-product-price-col">
-                  <span className="live-page-product-price">
+
+                <div className="live-page-product-info" style={styles.body}>
+                  <div className="live-page-product-name" style={styles.name}>{p.name}</div>
+                  {p.description && (
+                    <div style={styles.desc}>{p.description}</div>
+                  )}
+                  <div style={styles.metaRow}>
+                    <span style={styles.badge}>재고 {p.stockQty ?? 0}개</span>
+                    {p.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
+                  </div>
+                </div>
+
+                <div style={{ ...styles.metaRow, padding: '0 14px 10px 14px' }}>
+                  <span className="live-page-product-price" style={styles.price}>
                     ₩{Number(p.price || 0).toLocaleString()}
                   </span>
                 </div>
-                <div className="live-page-product-buttons-col">
-                  <button className="live-page-btn-cart live-page-btn-outline">장바구니</button>
-                  <button className="live-page-btn-buy live-page-btn-filled">주문하기</button>
+
+                <div className="live-page-product-buttons-col" style={styles.actions}>
+                  <button className="live-page-btn-cart live-page-btn-outline" style={styles.btnOutline}>장바구니</button>
+                  <button className="live-page-btn-buy live-page-btn-filled" style={styles.btnFilled}>주문하기</button>
                 </div>
               </div>
             ))
           ) : (
-            <div className="live-page-product-empty">등록된 상품이 없습니다.</div>
+            <div className="live-page-product-empty" style={{ padding: 30, textAlign: 'center', color: '#777' }}>
+              등록된 상품이 없습니다.
+            </div>
           )}
         </div>
       </div>
