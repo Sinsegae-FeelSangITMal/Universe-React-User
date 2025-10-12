@@ -106,7 +106,7 @@ export default function ProductList() {
           <div className="row">
             <div className="col-xl-7 col-lg-8 col-md-10">
               <div className="section-tittle mb-50">
-                <h2  style={{ minWidth: "1000px" }}>Shop with {artist ? `${artist.name}` : ""}</h2>
+                <h2 style={{ minWidth: "1000px" }}>Shop with {artist ? `${artist.name}` : ""}</h2>
                 <p>{pageInfo.totalElements.toLocaleString()} items found</p>
               </div>
             </div>
@@ -155,20 +155,20 @@ export default function ProductList() {
                             className="single-new-arrival mb-50 text-center">
                             <div className="popular-img">
                               <Link to={`/shop/product/${p.id}`}>
-                              <img
-                                src={p.mainImageUrl || DUMMY_IMG}
-                                alt={p.productName}
-                                style={{ width: "100%", height: 260, objectFit: "cover", cursor: "pointer" }}
-                                onError={(e) => (e.currentTarget.src = DUMMY_IMG)}
-                              />
+                                <img
+                                  src={p.mainImageUrl || DUMMY_IMG}
+                                  alt={p.productName}
+                                  style={{ width: "100%", height: 260, objectFit: "cover", cursor: "pointer" }}
+                                  onError={(e) => (e.currentTarget.src = DUMMY_IMG)}
+                                />
                               </Link>
                             </div>
                             <div className="popular-caption">
                               <Link to={`/shop/product/${p.id}`}>
-                              <h3
-                                style={{ cursor: "pointer" }}>
-                                {p.productName}
-                              </h3>
+                                <h3
+                                  style={{ cursor: "pointer" }}>
+                                  {p.productName}
+                                </h3>
                               </Link>
                               <span>₩ {toKRW(p.price)}</span>
                               <div className="mt-2" style={{ fontSize: 12, color: "#B084DC" }}>
@@ -177,7 +177,7 @@ export default function ProductList() {
                                   <div>발매 시작 시간 : {p.openDate ? p.openDate.replace("T", " ") : ""}</div>
                                 )}
                               </div>
-                              {p.fan && (
+                              {p.fanOnly && (
                                 <div
                                   style={{
                                     fontSize: 11,
@@ -187,6 +187,19 @@ export default function ProductList() {
                                   }}
                                 >
                                   [ 멤버십 전용 상품 ]
+                                </div>
+                              )}
+                              {/* ✅ 품절 배지 */}
+                              {p.stockQty === 0 && (
+                                <div
+                                  style={{
+                                    fontSize: 14,
+                                    color: "#cb0000ff",
+                                    marginTop: "5px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Sold Out
                                 </div>
                               )}
                             </div>
