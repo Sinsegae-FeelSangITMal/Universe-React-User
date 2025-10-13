@@ -157,7 +157,7 @@ export default function ProductList() {
                             boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
                             transition: 'transform 0.3s ease, box-shadow 0.3s ease',
                             cursor: 'pointer',
-                            display: 'flex', flexDirection: 'column', height: '100%'
+                            display: 'flex', flexDirection: 'column', height: '97%'
                           }}
                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.1)'; }}
                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.05)'; }}

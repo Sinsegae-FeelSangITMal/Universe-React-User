@@ -212,16 +212,78 @@ export default function ProductDetail() {
 
   return (
     <main>
-      {/* breadcrumb */}
-      <div className="page-notification" style={{ marginBottom: 30 }}>
+      {/* breadcrumb (inline styles only) */}
+      <div
+        style={{
+          marginBottom: 30,
+          padding: '14px 0',
+          background: 'linear-gradient(180deg, #f7f2ff 0%, #fbf9ff 100%)',
+          border: '1px solid #ece4ff',
+          borderRadius: 16,
+          boxShadow: '0 8px 24px rgba(115,74,222,0.08)',
+        }}
+      >
         <div className="container" style={{ maxWidth: 1140 }}>
           <div className="row">
             <div className="col-lg-12">
               <nav aria-label="breadcrumb">
-                <ol className="breadcrumb justify-content-center">
-                  <li className="breadcrumb-item"><Link to="/">Home</Link></li>
-                  <li className="breadcrumb-item"><Link to="#">Shop</Link></li>
-                  <li className="breadcrumb-item active" aria-current="page">{artistName}</li>
+                <ol
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 10,
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                    color: '#3b2b6d',
+                    fontWeight: 700,
+                  }}
+                >
+                  <li>
+                    <Link
+                      to="/"
+                      style={{
+                        color: '#734ade',
+                        textDecoration: 'none',
+                        fontWeight: 700,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      Home
+                    </Link>
+                  </li>
+
+                  <li aria-hidden="true" style={{ color: '#9a86ff', fontWeight: 700 }}>›</li>
+
+                  <li>
+                    <Link
+                      to="#"
+                      style={{
+                        color: '#734ade',
+                        textDecoration: 'none',
+                        fontWeight: 700,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      Shop
+                    </Link>
+                  </li>
+
+                  <li aria-hidden="true" style={{ color: '#9a86ff', fontWeight: 700 }}>›</li>
+
+                  <li
+                    aria-current="page"
+                    style={{
+                      color: '#3b2b6d',
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {artistName}
+                  </li>
                 </ol>
               </nav>
             </div>

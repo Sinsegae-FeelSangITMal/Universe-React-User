@@ -1,10 +1,11 @@
+// src/api/ArtistApi.jsx (프록시 고정 버전)
 import axios from "axios";
 
-// 아티스트 관련 공통 URL (판매자와 요청하는 목록이 같아서 ent로 요청)
-const URL = `${import.meta.env.VITE_API_URL}/api/ent/artists`;
+// ✅ Vite dev 서버 프록시를 타도록 전역 기본 경로를 /api 로 고정
+axios.defaults.baseURL = "/api";
 
-// 아티스트 목록 (판매자와 요청하는 목록이 같아서 ent로 요청)
-export const getArtists = () => axios.get(URL);
+// 아티스트 목록
+export const getArtists = () => axios.get("/ent/artists");
 
-// 아티스트 한 건 가져오기(URL{~~/artist/35}, get) (판매자와 요청하는 목록이 같아서 ent로 요청)
-export const getArtist = (artistId) => axios.get(`${URL}/${artistId}`);
+// 아티스트 단건
+export const getArtist = (artistId) => axios.get(`/ent/artists/${artistId}`);
