@@ -20,8 +20,13 @@ export default function Main() {
     (async () => {
       try {
         const res = await getArtists();
-        setArtists(res.data);
-        console.log(res.data);
+        // API 형태 다양성 대비
+        const list =
+          res?.data?.data?.content ??
+          res?.data?.content ??
+          res?.data ??
+          [];
+        if (mounted) setArtists(list);
       } catch (e) {
         console.error("아티스트 로드 실패:", e);
       }
@@ -51,6 +56,19 @@ export default function Main() {
         arrows: false,
       });
     }
+
+    // cleanup
+    return () => {
+      mounted = false;
+      const $inited = $(".slider-active.slick-initialized");
+      if ($inited.length) {
+        try {
+          $inited.slick("unslick");
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
   }, []);
 
   return (
@@ -58,114 +76,206 @@ export default function Main() {
       {/* Hero Area */}
       <div className="container" style={{ minWidth: "90%", margin: "0 auto" }}>
         <div className="slider-area">
-          {/* 생략: 기존 헤더/검색/소셜 */}
           <div className="slider-active dot-style">
-            {/* 기존 슬라이드들 유지 */}
+            {/* Slide 1 */}
             <div className="single-slider slider-bg1 hero-overly slider-height d-flex align-items-center">
-              <div className="container" style={{ minWidth: "95%", margin: "0 auto" }}>
+              <div
+                className="container"
+                style={{ minWidth: "95%", margin: "0 auto" }}
+              >
                 <div className="row justify-content-center">
                   <div className="col-xl-8 col-lg-9">
                     <div className="hero__caption">
-                      <h1 style={{marginBottom: 50, textShadow: "0 0 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 9px rgba(0, 0, 0, 0.7)"}}>
-                        25.11.01<br/>
-                        BTS Special Live
+                      {/* ✅ 한 개의 h1만 사용 + 줄바꿈은 block span */}
+                      <h1
+                        style={{
+                          marginBottom: 50,
+                          textShadow:
+                            "0 0 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 9px rgba(0, 0, 0, 0.7)",
+                        }}
+                      >
+                        <span style={{ display: "block" }}>25.11.01</span>
+                        <span style={{ display: "block" }}>
+                          BTS Special Live
+                        </span>
                       </h1>
-                      <a href="shop.html" className="btn">View Special MD</a>
+
+                      <Link to="/shop/products" className="btn">
+                        View Special MD
+                      </Link>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Slide 2 */}
             <div className="single-slider slider-bg2 hero-overly slider-height d-flex align-items-center">
-              <div className="container" style={{ minWidth: "95%", margin: "0 auto" }}>
+              <div
+                className="container"
+                style={{ minWidth: "95%", margin: "0 auto" }}
+              >
                 <div className="row justify-content-center">
                   <div className="col-xl-8 col-lg-9">
                     <div className="hero__caption">
-                      <h1 style={{marginBottom: 50}}>
-                        Universe X Netflix<br/>
-                        <h1 style={{color: "#430759ff", textShadow: "0 0 3px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.9), 0 0 9px rgba(255, 255, 255, 0.9)"}}>KPop Demon Hunters</h1>
-                      </h1>
-                      <a href="shop.html" className="btn">View Products</a>
+                      {/* ✅ 중첩 h1 제거: 상위는 h1 대신 h2 사용 */}
+                      <h2 style={{ marginBottom: 12 }}>
+                        Universe X Netflix
+                      </h2>
+                      <p
+                        style={{
+                          marginBottom: 28,
+                          fontSize: 36,
+                          fontWeight: 800,
+                          lineHeight: 1.15,
+                          color: "#430759ff",
+                          textShadow:
+                            "0 0 3px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.9), 0 0 9px rgba(255, 255, 255, 0.9)",
+                        }}
+                      >
+                        KPop Demon Hunters
+                      </p>
+
+                      <Link to="/shop/products" className="btn">
+                        View Products
+                      </Link>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
+            {/* // slides end */}
           </div>
         </div>
       </div>
 
-      {/* Popular Items (기존 섹션 유지) */}
+      {/* Popular Items */}
       <div className="popular-items pt-50">
-        <div className="container" style={{ minWidth: "90%", margin: "0 auto" }}>
+        <div
+          className="container"
+          style={{ minWidth: "90%", margin: "0 auto" }}
+        >
           <div className="section-tittle medium">
             <h2>좋아하는 아티스트를 만나보세요!</h2>
           </div>
           <div className="row">
-            {/* 예시 카드 1개 유지 (필요시 이 영역도 API 연결로 교체 가능) */}
-                {artists.map((a) => (
-            <div className="col-lg-3 col-md-6 col-sm-6" key={a.id}>
-              <div className="single-popular-items mb-50 text-center wow fadeInUp" data-wow-duration="1s" data-wow-delay=".4s">
+            {artists.map((a) => (
+              <div className="col-lg-3 col-md-6 col-sm-6" key={a.id}>
+                <div
+                  className="single-popular-items mb-50 text-center wow fadeInUp"
+                  data-wow-duration="1s"
+                  data-wow-delay=".4s"
+                >
                   <div className="popular-img">
-                    <img src={a.logoImg} alt="" style={{width: "100%", height: "350px", objectFit: "cover"}}/>
+                    <img
+                      src={a.logoImg}
+                      alt={a.name ?? "artist"}
+                      style={{
+                        width: "100%",
+                        height: "350px",
+                        objectFit: "cover",
+                      }}
+                    />
                     <div className="img-cap">
                       <span>{a.name}</span>
                     </div>
                     <div className="favorit-items">
-                      <a href={`/artists/${a.id}/intro`} className="btn">View Artist</a>
-
+                      <Link to={`/artists/${a.id}/intro`} className="btn">
+                        View Artist
+                      </Link>
                     </div>
                   </div>
+                </div>
               </div>
-            </div>
-                ))}
+            ))}
+            {artists.length === 0 && (
+              <div className="col-12 text-center" style={{ opacity: 0.7 }}>
+                아티스트가 없습니다.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* New Arrival = 신상품 8개 */}
+      {/* New Arrival */}
       <div className="new-arrival">
-        <div className="container" style={{ minWidth: "95%", margin: "0 auto" }}>
+        <div
+          className="container"
+          style={{ minWidth: "95%", margin: "0 auto" }}
+        >
           <div className="row justify-content-center">
             <div className="col-xl-7 col-lg-8 col-md-10">
-              <div className="section-tittle mb-60 text-center wow fadeInUp" data-wow-duration="2s" data-wow-delay=".2s">
-                <h2>new<br />md<br /></h2>
+              <div
+                className="section-tittle mb-60 text-center wow fadeInUp"
+                data-wow-duration="2s"
+                data-wow-delay=".2s"
+              >
+                <h2>New MD</h2>
               </div>
             </div>
           </div>
 
           <div className="row">
-            {!loading && newProducts.map((p) => (
-              <div key={p.id} className="col-xl-3 col-lg-3 col-md-6 col-sm-6">
-                <div className="single-new-arrival mb-50 text-center wow fadeInUp" data-wow-duration="1s" data-wow-delay=".1s">
-                  <div className="popular-img" style={{ position: "relative" }}>
-                    <Link to={`/shop/product/${p.id}`}>
-                    <img
-                      src={p.mainImageUrl || "assets/img/gallery/arrival8.png"}
-                      alt={p.productName}
-                      style={{ width: "100%", height: 260, objectFit: "cover", cursor: "pointer" }}
-                      onError={(e) => { e.currentTarget.src = "assets/img/gallery/arrival8.png"; }}
-                    /></Link>
-                  </div>
+            {!loading &&
+              newProducts.map((p) => (
+                <div
+                  key={p.id}
+                  className="col-xl-3 col-lg-3 col-md-6 col-sm-6"
+                >
+                  <div
+                    className="single-new-arrival mb-50 text-center wow fadeInUp"
+                    data-wow-duration="1s"
+                    data-wow-delay=".1s"
+                  >
+                    <div
+                      className="popular-img"
+                      style={{ position: "relative" }}
+                    >
+                      <Link to={`/shop/product/${p.id}`}>
+                        <img
+                          src={
+                            p.mainImageUrl || "assets/img/gallery/arrival8.png"
+                          }
+                          alt={p.productName}
+                          style={{
+                            width: "100%",
+                            height: 260,
+                            objectFit: "cover",
+                            cursor: "pointer",
+                          }}
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              "assets/img/gallery/arrival8.png";
+                          }}
+                        />
+                      </Link>
+                    </div>
 
-                  <div className="popular-caption">
-                    <h3>
-                      <Link to={`/shop/product/${p.id}`}>{p.productName}</Link>
-                    </h3>
-                    <span>₩ {toKRW(p.price)}</span>
+                    <div className="popular-caption">
+                      <h3 style={{ marginBottom: 8 }}>
+                        <Link to={`/shop/product/${p.id}`}>
+                          {p.productName}
+                        </Link>
+                      </h3>
+                      <span>₩ {toKRW(p.price)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
 
+            {!loading && newProducts.length === 0 && (
+              <div className="col-12 text-center" style={{ opacity: 0.7 }}>
+                신상품이 없습니다.
+              </div>
+            )}
+          </div>
 
           {/* 더보기 버튼 */}
           <div className="row justify-content-center">
             <div className="room-btn">
-              <Link to="/shop/products" className="border-btn">더 둘러보기</Link>
+              <Link to="/shop/products" className="border-btn">
+                더 둘러보기
+              </Link>
             </div>
           </div>
         </div>
