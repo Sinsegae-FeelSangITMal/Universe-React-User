@@ -1,4 +1,5 @@
 // Merge.jsx
+/* eslint-disable no-empty */
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -14,7 +15,8 @@ import { getPromotion } from "../../utils/PromotionApi";
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 
 // ---- Endpoints (vite proxy 기준) ----
-const SERVER_URL = '/'; // Connect to the same host, will be routed by Gateway
+// const SERVER_URL = '/'; // Connect to the same host, will be routed by Gateway
+const SERVER_URL = import.meta.env.VITE_MEDIASOUP_HOST || 'http://localhost:4000';
 const CHAT_API_BASE_URL = '/chatapi'; // Routed by Gateway
 const MAIN_API_URL = '/api'; // Routed by Gateway
 const CHAT_WS_URL = '/ws'; // Routed by Gateway
@@ -62,6 +64,7 @@ export default function Merge() {
   const [productDetails, setProductDetails] = useState([]);
 
   const myUserId = user?.userId || 0;
+  const sender = user?.nickname || '나';
 
   // 🔹 VOD 전환 헬퍼
   const setVideoToVod = (recordPath) => {
@@ -320,7 +323,7 @@ export default function Merge() {
       try { client.deactivate(); } catch { }
       stompRef.current = null;
     };
-  }, [artistId, accessToken, navigate]);
+  }, [artistId, accessToken, navigate, myUserId]);
 
   // 🧠 1️⃣ 자막 STOMP 구독 (Spring Boot)
   useEffect(() => {
@@ -387,12 +390,12 @@ export default function Merge() {
     console.log('[Live] EFFECT ENTER', { liveId });
 
     const socket = io(SERVER_URL, {
-        path: SOCKET_PATH,
-        transports: ['websocket'],
-        // 서버가 읽는 키 이름을 streamId로!
-        query: { role: 'viewer', streamId: String(liveId) },
-        forceNew: true,
-      });
+      path: SOCKET_PATH,
+      transports: ['websocket'],
+      // 서버가 읽는 키 이름을 streamId로!
+      query: { role: 'viewer', streamId: String(liveId) },
+      forceNew: true,
+    });
 
     socketRef.current = socket;
     window.__viewerSocket = socket;
@@ -583,7 +586,7 @@ export default function Merge() {
         subtitleTimerRef.current = null;
       }
     };
-  }, [liveId, streamStatus]);
+  }, [liveId]);
 
   // ===== Mute 타이머 =====
   useEffect(() => {
