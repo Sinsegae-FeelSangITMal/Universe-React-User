@@ -11,30 +11,13 @@ export default ({ mode }) => {
       port: 4444,
       open: true,
       proxy: {
-
-        '/api': { target: env.VITE_API_URL, changeOrigin: true },
-        '/images': { target: env.VITE_API_URL, changeOrigin: true },
-
-        '/ws': { target: env.VITE_CHAT_URL, changeOrigin: true, ws: true },
-        '/chatapi': { target: env.VITE_CHAT_URL, changeOrigin: true },
-        '/ws-subtitle': { target: env.VITE_LIVE_URL, changeOrigin: true, ws: true, secure: false },
-        '/socket.io': { target: env.VITE_MEDIASOUP_HOST, changeOrigin: true, ws: true },
-
-        // 🔹 자막 WebSocket (Spring Live 서비스, 8080)
-        // '/ws-subtitle'로 시작하는 모든 요청을 target으로 전달
-        '/ws-subtitle': {
-          target: env.VITE_LIVE_URL,
-          changeOrigin: true,
-          ws: true,
-          secure: false,
-        },
-
-        // --- mediasoup (4000)
-        '/socket.io': {
-          target: env.VITE_MEDIASOUP_HOST,
-          changeOrigin: true,
-          ws: true,
-        },
+        '/socket.io': { target: 'http://localhost:8000', ws: true, changeOrigin: true },
+        '/ws': { target: 'http://localhost:8000', ws: true, changeOrigin: true },
+        '/ws-subtitle': { target: 'http://localhost:8000', ws: true, changeOrigin: true },
+        '/chatapi': { target: 'http://localhost:8000', changeOrigin: true },
+        '/api': { target: 'http://localhost:8000', changeOrigin: true },
+        '/images': { target: 'http://localhost:8000', changeOrigin: true },
+        '/recording': { target: 'http://localhost:8000', changeOrigin: true },
       },
     },
     define: { global: 'window' },
