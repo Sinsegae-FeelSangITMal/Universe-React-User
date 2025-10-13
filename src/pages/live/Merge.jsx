@@ -18,6 +18,7 @@ const SERVER_URL = '/'; // Connect to the same host, will be routed by Gateway
 const CHAT_API_BASE_URL = '/chatapi'; // Routed by Gateway
 const MAIN_API_URL = '/api'; // Routed by Gateway
 const CHAT_WS_URL = '/ws'; // Routed by Gateway
+const SOCKET_PATH = '/socket.io';
 
 // ---- STOMP Topics ----
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
@@ -325,8 +326,7 @@ export default function Merge() {
   useEffect(() => {
     if (!liveId) return;
 
-    const SUBTITLE_API_URL = import.meta.env.VITE_LIVE_URL; // Viewer.jsx 방식
-    const sockUrl = `${SUBTITLE_API_URL}/ws-subtitle`;
+    const sockUrl = `/ws-subtitle`;
 
     console.log(`[Subtitle] Connecting STOMP for liveId=${liveId}`);
     console.log("[Subtitle] SockJS connecting to:", sockUrl);
@@ -387,11 +387,12 @@ export default function Merge() {
     console.log('[Live] EFFECT ENTER', { liveId });
 
     const socket = io(SERVER_URL, {
-      path: SOCKET_PATH,
-      transports: ['websocket'],
-      query: { role: 'viewer', liveId: String(liveId) },
-      forceNew: true,
-    });
+        path: SOCKET_PATH,
+        transports: ['websocket'],
+        // 서버가 읽는 키 이름을 streamId로!
+        query: { role: 'viewer', streamId: String(liveId) },
+        forceNew: true,
+      });
 
     socketRef.current = socket;
     window.__viewerSocket = socket;
