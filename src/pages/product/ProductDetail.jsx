@@ -452,6 +452,23 @@ export default function ProductDetail() {
 
             {/* 버튼 */}
             <div className="d-flex gap-3">
+              { !detail.initialStock ? (
+                   <div
+                      className="border-btn flex-grow-1 "
+                      style={{ 
+                        width: "100px", margin: "10px 5px 10px 0px", cursor: "text",
+                        display: "flex",             // 🔹 플렉스 컨테이너
+                        justifyContent: "center",    // 🔹 가로 중앙
+                        alignItems: "center",
+                        color: "#848484ff",
+                        background: "#f3f3f3",  
+                      }}
+                    >
+                      SOLD OUT
+                    </div>
+              ) : (
+                  <>
+                
               <button
                 className="border-btn flex-grow-1"
                 style={{ width: "100px", margin: "10px 5px 10px 0px", }}
@@ -465,6 +482,8 @@ export default function ProductDetail() {
               >
                 구매하기
               </button>
+              </>
+            )}
             </div>
 
             {/* 간단 설명 */}
