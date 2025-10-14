@@ -494,7 +494,7 @@ export default function Merge() {
 
     const socket = io(SERVER_URL || undefined, {
       path: SOCKET_PATH,
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
       withCredentials: true,
       forceNew: true,
       reconnection: true,
