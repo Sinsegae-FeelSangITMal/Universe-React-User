@@ -185,8 +185,17 @@ export default function ArtistIntroPage() {
 
       {/* 실시간 라이브 영역 -> 실시간 시청자 수, 조회수 */}
       <div style={{ marginBottom: 120 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
+        <div style={{ display: "flex",flexDirection: "column", justifyContent: "flex-start", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>ON AIR</div>
+          <div style={{  // 소개글 
+            color: "#4c4c4cff",
+            fontSize: 16,
+            marginTop: 50,
+            textAlign: "center"
+           
+          }}>
+            진행중인 생방송이 없습니다.
+          </div>
         </div>
         <div style={{ display: "flex", gap: 24, }}>
           {liveStreams.map((live) => ( //생방중인 라이브는 항상 한개라고 가정함
@@ -257,16 +266,57 @@ export default function ArtistIntroPage() {
                 alert(`📺 "${live.title}" 라이브는 ${formatted}에 시작될 예정입니다.`);
               }}
             >
+
+          <div
+              style={{
+                position: "relative",
+                width: "350px",
+                height: "230px",
+                borderRadius: 20,
+                overflow: "hidden",
+              }}
+            >
               <img
                 src={live.thumb}
                 alt={live.title}
                 style={{
-                  width: "350px",
-                  height: "230px",
+                  width: "100%",
+                  height: "100%",
                   objectFit: "cover",
-                  borderRadius: 20,
+                  filter: "brightness(65%)", // 🔥 살짝 어둡게
+                  display: "block",
                 }}
               />
+          </div>
+
+              {live.thumb && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "40%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  color: "white",
+                  fontWeight: 700,
+                  fontSize: 28,
+                  textAlign: "center",
+                  textShadow: "0 2px 4px rgba(0,0,0,0.6)",
+                }}
+              >
+                {new Date(live.time).toLocaleDateString("ko-KR", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                })}{" "}
+                <br />
+                {new Date(live.time).toLocaleTimeString("ko-KR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false
+                })}
+              </div>
+              )}
+
               <div style={{ padding: 12 }}>
                 <div style={{ color: "#000000ff", fontWeight: 600, fontSize: 16, marginBottom: 4 }}>
                   {live.title}
