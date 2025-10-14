@@ -1,4 +1,9 @@
+import { Link, useNavigate } from "react-router-dom"
+
 export default function Footer(){
+
+    const navigate = useNavigate();
+
     return (
     <footer>
     {/* <!-- Footer Start--> */}
@@ -31,8 +36,7 @@ export default function Footer(){
                     <div className="footer-tittle">
                         <h4>Partner</h4>
                         <ul>
-                            <li><a href="#">소속사 메인</a></li>
-                            <li><a href="#">입점 문의</a></li>
+                            <li><a href={`${import.meta.env.VITE_PARTNER_URL}/main`} target="_blank">입점 문의</a></li>
                         </ul>
                     </div>
                 </div>
