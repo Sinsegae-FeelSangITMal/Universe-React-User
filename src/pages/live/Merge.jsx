@@ -1,4 +1,3 @@
-// Merge.jsx
 /* eslint-disable no-empty */
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -15,13 +14,60 @@ import { getPromotion } from '../../utils/PromotionApi';
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 
 /* =========================
+   Quiet Logger (env-toggle + throttling)
+   ========================= */
+const VERBOSE = (import.meta.env.VITE_LOG_VERBOSE ?? 'false') === 'true';
+const VIDEO_DEBUG = false; // 비디오 이벤트/리사이즈 로그를 보고 싶을 때만 true
+
+const makeThrottled = (fn, intervalMs = 3000) => {
+  let last = 0;
+  return (...args) => {
+    const now = performance.now();
+    if (now - last >= intervalMs) {
+      last = now;
+      fn(...args);
+    }
+  };
+};
+const LOG = {
+  info: (...a) => { if (VERBOSE) console.log('[LIVE]', ...a); },
+  warn: (...a) => { if (VERBOSE) console.warn('[LIVE]', ...a); },
+  error: (...a) => { if (VERBOSE) console.error('[LIVE]', ...a); },
+  infoThrottled: makeThrottled((...a) => console.log('[LIVE]', ...a), 5000),
+  warnThrottled: makeThrottled((...a) => console.warn('[LIVE]', ...a), 5000),
+};
+
+/* =========================
    Endpoints (게이트웨이 기준)
    ========================= */
-const SERVER_URL = '';              // same-origin (vite proxy → gateway)
-const SOCKET_PATH = '/socket.io';
+const _resolveBase = (v, fallback = '') => {
+  if (!v) return fallback;
+  if (String(v).toLowerCase() === 'same-origin') return '';
+  return v;
+};
+
+const SERVER_URL = _resolveBase(import.meta.env.VITE_MEDIASOUP_HOST, '');
+const SOCKET_PATH_RAW = import.meta.env.VITE_MEDIASOUP_PATH || '/socket.io';
+const SOCKET_PATH = SOCKET_PATH_RAW.startsWith('/') ? SOCKET_PATH_RAW : `/${SOCKET_PATH_RAW}`;
 const CHAT_API_BASE_URL = '/chatapi';
+const MAIN_API_URL = '/api';
 const CHAT_WS_URL = '/ws';
-const toGatewayUrl = (path) => (path && /^https?:\/\//i.test(path) ? path : path);
+
+LOG.info('ENV', {
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  VITE_MEDIASOUP_HOST: import.meta.env.VITE_MEDIASOUP_HOST,
+  SERVER_URL,
+  SOCKET_PATH,
+  CHAT_API_BASE_URL,
+  CHAT_WS_URL,
+});
+
+const toGatewayUrl = (p) => {
+  if (!p) return '';
+  if (/^https?:\/\//i.test(p)) return p;
+  const base = import.meta.env.VITE_API_URL || '';
+  return `${base}${p}`;
+};
 
 /* =========================
    STOMP Topics
@@ -44,7 +90,7 @@ export default function Merge() {
   const recvTransportRef = useRef(null);
   const subtitleTimerRef = useRef(null);
   const initOnceRef = useRef(false);
-  const msRef = useRef(null);              // <video>.srcObject 에 꽂아둘 MediaStream
+  const msRef = useRef(null);
 
   /* ========== States ========== */
   const [chatList, setChatList] = useState([]);
@@ -66,7 +112,7 @@ export default function Merge() {
   const [promotion, setPromotion] = useState(null);
   const [productDetails, setProductDetails] = useState([]);
 
-  /* 최신 streamStatus 접근용 ref */
+  /* 최신 status ref */
   const statusRef = useRef(streamStatus);
   useEffect(() => { statusRef.current = streamStatus; }, [streamStatus]);
 
@@ -80,6 +126,7 @@ export default function Merge() {
      VOD 전환 & 재생 컨트롤
      ========================= */
   const setVideoToVod = (recordPath) => {
+    LOG.info('VOD▶ setVideoToVod', { recordPath });
     const videoEl = remoteVideoRef.current;
     if (!videoEl) return;
 
@@ -87,10 +134,9 @@ export default function Merge() {
       try { videoEl.srcObject.getTracks?.().forEach((t) => t.stop?.()); } catch { }
       videoEl.srcObject = null;
     }
-
     videoEl.crossOrigin = 'anonymous';
     videoEl.src = toGatewayUrl(recordPath || '');
-    videoEl.controls = false;      // 커스텀 버튼 사용
+    videoEl.controls = false;
     videoEl.muted = false;
     videoEl.playsInline = true;
 
@@ -100,6 +146,7 @@ export default function Merge() {
     setIsVodPlaying(false);
     setIsStreamAvailable(true);
     setStreamStatus('vod');
+    LOG.info('STATUS vod');
   };
 
   const handleVodPlay = async () => {
@@ -109,8 +156,9 @@ export default function Merge() {
       v.muted = false;
       await v.play();
       setIsVodPlaying(true);
+      LOG.info('VOD✔ play');
     } catch (e) {
-      console.error('[VOD] play 실패:', e);
+      LOG.error('VOD✖ play', e);
       toast.error('재생할 수 없습니다.');
     }
   };
@@ -118,11 +166,11 @@ export default function Merge() {
   const handleVodPause = () => {
     const v = remoteVideoRef.current;
     if (!v) return;
-    try { v.pause(); } finally { setIsVodPlaying(false); }
+    try { v.pause(); LOG.info('VOD⏸ pause'); } finally { setIsVodPlaying(false); }
   };
 
   /* =========================
-     초기 비디오 MediaStream 장착
+     초기 비디오 MediaStream 장착 + 이벤트 로그 (옵션)
      ========================= */
   useEffect(() => {
     const v = remoteVideoRef.current;
@@ -137,12 +185,28 @@ export default function Merge() {
     v.muted = true;
     v.playsInline = true;
 
+    const logEv = (ev) => {
+      if (VERBOSE && VIDEO_DEBUG) LOG.info(`VIDEO ${ev.type}`, { readyState: v.readyState, src: v.src });
+    };
+
+    if (VERBOSE && VIDEO_DEBUG) {
+      ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'error']
+        .forEach((name) => v.addEventListener(name, logEv));
+    }
+
     const p = v.play?.();
     if (p && p.catch) p.catch(() => { });
+
+    return () => {
+      if (VERBOSE && VIDEO_DEBUG) {
+        ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'error']
+          .forEach((name) => v.removeEventListener(name, logEv));
+      }
+    };
   }, []);
 
   /* =========================
-     Video/Aidio 트랙 부착 헬퍼
+     트랙 부착
      ========================= */
   const tryPlay = (video) => {
     if (!video) return;
@@ -153,6 +217,7 @@ export default function Merge() {
   };
 
   const attachTrack = (track, kind) => {
+    LOG.info(`TRACK▶ attach ${kind}`, { id: track?.id, muted: track?.muted });
     if (kind === 'video') attachVideoTrack(track);
     else if (kind === 'audio') attachAudioTrack(track);
   };
@@ -167,7 +232,13 @@ export default function Merge() {
     ms.addTrack(track);
     msRef.current = ms;
 
+    if (video.srcObject !== ms) video.srcObject = ms;
+
     const kick = () => {
+      if (streamStatus !== 'vod') {
+        setIsStreamAvailable(true);
+        setStreamStatus('streaming');
+      }
       const p = video.play?.();
       if (p && p.catch) p.catch(() => { });
     };
@@ -178,12 +249,24 @@ export default function Merge() {
       kick();
     }
 
-    video.addEventListener('loadeddata', kick, { once: true });
-    video.addEventListener('canplay', kick, { once: true });
-    if ('requestVideoFrameCallback' in video) {
-      // @ts-ignore
-      video.requestVideoFrameCallback(() => kick());
-    }
+    const onReady = () => {
+      if (streamStatus !== 'vod') {
+        setIsStreamAvailable(true);
+        setStreamStatus('streaming');
+      }
+      kick();
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('canplay', onReady);
+    };
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('canplay', onReady);
+
+    try {
+      if ('requestVideoFrameCallback' in video) {
+        // @ts-ignore
+        video.requestVideoFrameCallback(() => kick());
+      }
+    } catch { }
   };
 
   const attachAudioTrack = (track) => {
@@ -199,10 +282,11 @@ export default function Merge() {
 
     const p = video.play?.();
     if (p && p.catch) p.catch(() => { });
+    LOG.info('AUDIO✔ attached');
   };
 
   /* =========================
-     UI: 채팅 자동 스크롤
+     채팅 스크롤
      ========================= */
   useEffect(() => {
     if (chatMessagesRef.current) {
@@ -211,10 +295,11 @@ export default function Merge() {
   }, [chatList]);
 
   /* =========================
-     데이터 로딩 (스트림/프로모션/상품)
+     데이터 로딩
      ========================= */
   useEffect(() => {
     const fetchData = async () => {
+      LOG.info('API▶ getStream', { liveId: String(liveId) });
       try {
         const streamResp = await getStream(liveId);
         const s = streamResp?.data?.data || streamResp?.data || {};
@@ -228,6 +313,7 @@ export default function Merge() {
           status: (s?.srStatus || s?.status || '').toString().toUpperCase(),
           record: s?.record || s?.srRecord,
         };
+        LOG.info('API✔ getStream', normalized);
         setStreamInfo(normalized);
 
         const raw = normalized.status;
@@ -235,13 +321,15 @@ export default function Merge() {
 
         if (raw === 'ENDED' || raw === 'END' || raw === 'COMPLETED') {
           if (normalized.record) setVideoToVod(normalized.record);
-          else { setIsStreamAvailable(false); setStreamStatus('ended'); }
+          else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (no record)'); }
         } else if (raw === 'LIVE' || raw === 'WAITING') {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
+          LOG.info('STATUS init -> waiting');
         } else {
           setIsStreamAvailable(false);
           setStreamStatus('ended');
+          LOG.warn('STATUS ended (unknown raw)');
         }
 
         const promoId = s?.promotionId ?? s?.promotion_id ?? s?.PR_ID;
@@ -253,11 +341,13 @@ export default function Merge() {
           setPromotion(null);
         }
 
+        LOG.info('API▶ getStreamProductsByStream', { liveId: String(liveId) });
         const spResp = await getStreamProductsByStream(liveId);
         const spList = Array.isArray(spResp?.data?.data) ? spResp.data.data : [];
         setProductDetails(spList.map((sp) => ({ ...(sp.product || {}) })));
+        LOG.info('API✔ getStreamProductsByStream', spList);
       } catch (err) {
-        console.error('[Live] 데이터 로딩 실패:', err);
+        LOG.error('API✖ getStream', err);
         setStreamInfo((prev) => prev ?? { title: '', artistName: '' });
         setStreamStatus('ended');
       }
@@ -266,16 +356,22 @@ export default function Merge() {
   }, [liveId]);
 
   /* =========================
-     STOMP 채팅 (SockJS)
-     ========================= */
+   STOMP 채팅 (토큰 자동 복구 포함)
+   ========================= */
   useEffect(() => {
     if (!accessToken) return;
 
+    const getAccessToken = () => useAuthStore.getState().accessToken;
+
     const client = new StompClient({
-      webSocketFactory: () => new SockJS(CHAT_WS_URL),
-      connectHeaders: { Authorization: `Bearer ${accessToken}` },
+      webSocketFactory: () => new SockJS(CHAT_WS_URL, null, { withCredentials: true }),
+      connectHeaders: { Authorization: `Bearer ${getAccessToken()}` },
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
       reconnectDelay: 4000,
       onConnect: () => {
+        LOG.info('CHAT✔ connected');
+
         client.subscribe(TOPIC_SUBSCRIBE(artistId), (f) => {
           try {
             const body = JSON.parse(f.body);
@@ -312,9 +408,20 @@ export default function Merge() {
           }
         });
       },
-      onStompError: (frame) => console.error('[Chat] Broker error:', frame.headers['message'], frame.body),
-      onWebSocketError: (evt) => console.error('[Chat] WebSocket error:', evt),
-      onWebSocketClose: (evt) => console.warn('[Chat] WebSocket closed:', evt?.code, evt?.reason),
+      onStompError: (frame) => {
+        const msg = frame?.headers?.message || '';
+        LOG.error('CHAT✖ Broker error', msg, frame?.body);
+        if (msg.includes('INVALID_TOKEN')) {
+          try {
+            client.deactivate().then(() => {
+              client.connectHeaders = { Authorization: `Bearer ${getAccessToken()}` };
+              client.activate();
+            });
+          } catch { }
+        }
+      },
+      onWebSocketError: (evt) => LOG.error('CHAT✖ WebSocket error', evt),
+      onWebSocketClose: (evt) => LOG.warnThrottled('CHAT⚠ WebSocket closed', evt?.code, evt?.reason),
     });
 
     client.activate();
@@ -327,31 +434,48 @@ export default function Merge() {
   }, [artistId, accessToken, myUserId]);
 
   /* =========================
-     자막 STOMP (Spring Boot)
-     ========================= */
+   자막 STOMP (Authorization 포함)
+   ========================= */
   useEffect(() => {
     if (!liveId) return;
 
-    const sock = new SockJS('/ws-subtitle');
+    LOG.info('[Subtitle] Opening Web Socket...');
+    const getAccessToken = () => useAuthStore.getState().accessToken;
+
+    const sock = new SockJS('/ws-subtitle', null, { withCredentials: true });
     const subtitleClient = new StompClient({
       webSocketFactory: () => sock,
       reconnectDelay: 4000,
-      debug: (str) => console.log('[Subtitle DEBUG]', str),
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
+      connectHeaders: { Authorization: `Bearer ${getAccessToken()}` },
       onConnect: () => {
         subtitleClient.subscribe(`/topic/subtitles/${liveId}`, (frame) => {
           try {
             const payload = JSON.parse(frame.body);
+            LOG.info('SUBTITLE rx', payload);
             setSubtitle(payload);
             if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
             subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
           } catch (err) {
-            console.error('자막 파싱 실패', err);
+            LOG.error('SUBTITLE parse✖', err);
           }
         });
       },
-      onStompError: (frame) => console.error('[Subtitle] Broker error:', frame.headers['message'], frame.body),
-      onWebSocketError: (evt) => console.error('[Subtitle] WebSocket error:', evt),
-      onWebSocketClose: (evt) => console.warn('[Subtitle] WebSocket closed:', evt?.code, evt?.reason),
+      onStompError: (frame) => {
+        const msg = frame?.headers?.message || '';
+        LOG.error('[Subtitle] Broker error', msg, frame?.body);
+        if (msg.includes('INVALID_TOKEN')) {
+          try {
+            subtitleClient.deactivate().then(() => {
+              subtitleClient.connectHeaders = { Authorization: `Bearer ${getAccessToken()}` };
+              subtitleClient.activate();
+            });
+          } catch { }
+        }
+      },
+      onWebSocketError: (evt) => LOG.error('[Subtitle] WebSocket error', evt),
+      onWebSocketClose: (evt) => LOG.warnThrottled('[Subtitle] WebSocket closed', evt?.code, evt?.reason),
     });
 
     subtitleClient.activate();
@@ -363,32 +487,55 @@ export default function Merge() {
      ========================= */
   useEffect(() => {
     if (!liveId) return;
-    if (serverEnded || streamStatus === 'vod' || streamStatus === 'ended') return;
     if (initOnceRef.current) return;
     initOnceRef.current = true;
 
-    const socket = io(SERVER_URL, {
+    LOG.info('BOOT', { liveId: String(liveId), serverEnded, streamStatus });
+
+    const socket = io(SERVER_URL || undefined, {
       path: SOCKET_PATH,
-      transports: ['websocket'],
-      query: { role: 'viewer', streamId: String(liveId) },
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
       forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 800,
+      query: { role: 'viewer', streamId: String(liveId), liveId: String(liveId) },
     });
 
     socketRef.current = socket;
 
-    socket.on('connect', () => {
-      socket.emit('join-live', { liveId: String(liveId) });
+    // 모든 이벤트 로깅 (ping/pong 제외) → 스로틀 + VERBOSE 조건
+    socket.onAny((event, ...args) => {
+      if (!VERBOSE) return;
+      if (event === 'ping' || event === 'pong') return;
+      LOG.infoThrottled(`SOCK rx ${event}`, ...(args?.length ? args : []));
     });
 
-    socket.on('disconnect', (reason) => console.warn('viewer disconnect:', reason));
-    socket.on('connect_error', (e) => console.error('[Live] connect_error:', e?.message || e));
-    socket.on('viewer-count', (count) => setViewerCount(count));
+    socket.on('connect', () => {
+      LOG.info('SOCK✔ connect', { id: socket.id, url: SERVER_URL || '(same-origin)', path: SOCKET_PATH });
+      const joinPayload = { streamId: String(liveId), liveId: String(liveId) };
+      LOG.info('EMIT▶ join-live', joinPayload);
+      socket.emit('join-live', joinPayload, (ack) => {
+        LOG.info('ACK✔ join-live', ack);
+      });
+    });
 
+    socket.on('disconnect', (reason) => LOG.warnThrottled('SOCK⚠ disconnect', reason));
+    socket.on('connect_error', (e) => LOG.error('SOCK✖ connect_error', e?.message || e));
+    socket.io.on('reconnect_attempt', (n) => LOG.info('SOCK… reconnect_attempt', n));
+    socket.io.on('reconnect_error', (e) => LOG.warnThrottled('SOCK⚠ reconnect_error', e?.message || e));
+    socket.io.on('reconnect_failed', () => LOG.error('SOCK✖ reconnect_failed'));
+    socket.on('error', (e) => LOG.error('SOCK✖ error', e));
+    socket.on('viewer-count', (count) => { LOG.info('viewer-count', count); setViewerCount(count); });
+
+    // Subtitle proxy events over socket.io
     const handleSubtitleEvent = (data) => {
       try {
         let payload = data;
         if (typeof data === 'string') payload = { original: data };
         if (payload.liveId && String(payload.liveId) !== String(liveId)) return;
+        LOG.info('SUBTITLE(socket.io) rx', payload);
 
         const incoming = payload.subtitle || payload;
         const normalized = typeof incoming === 'string' ? { original: incoming } : incoming;
@@ -399,36 +546,52 @@ export default function Merge() {
           subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
         }
       } catch (err) {
-        console.error('자막 처리 오류', err);
+        LOG.error('SUBTITLE(socket.io) parse✖', err);
       }
     };
     socket.on('subtitle', handleSubtitleEvent);
     socket.on('subtitle-update', handleSubtitleEvent);
 
+    // --- mediasoup setup ---
     const setupMediasoup = async () => {
       try {
-        const routerRtpCapabilities = await new Promise((r) => socket.emit('getRouterRtpCapabilities', r));
+        LOG.info('MS▶ getRouterRtpCapabilities');
+        const routerRtpCapabilities = await new Promise((r) =>
+          socket.emit('getRouterRtpCapabilities', (resp) => { LOG.info('ACK✔ getRouterRtpCapabilities', resp); r(resp); })
+        );
+
         const device = new mediasoupClient.Device();
         await device.load({ routerRtpCapabilities });
         deviceRef.current = device;
+        LOG.info('MS✔ Device.load', { rtpCapabilities: device.rtpCapabilities });
 
-        const transportParams = await new Promise((r) => socket.emit('createWebRtcTransport', { sending: false }, r));
+        LOG.info('MS▶ createWebRtcTransport', { sending: false });
+        const transportParams = await new Promise((r) =>
+          socket.emit('createWebRtcTransport', { sending: false }, (resp) => { LOG.info('ACK✔ createWebRtcTransport', resp); r(resp); })
+        );
+
         const transport = device.createRecvTransport(transportParams);
         recvTransportRef.current = transport;
+        LOG.info('MS✔ recvTransport created', { id: transport.id });
 
         transport.on('connect', ({ dtlsParameters }, callback, errback) => {
+          LOG.info('MS▶ connectTransport');
           socket.emit('connectTransport', { dtlsParameters }, (error) => {
-            if (error) errback(new Error(error));
-            else callback();
+            if (error) { LOG.error('ACK✖ connectTransport', error); errback(new Error(error)); }
+            else { LOG.info('ACK✔ connectTransport'); callback(); }
           });
         });
 
         const consumeKind = async (kind) => {
           try {
-            const { rtpCapabilities } = deviceRef.current;
-            const params = await new Promise((r) => socket.emit('consume', { rtpCapabilities, kind, liveId }, r));
+            const { rtpCapabilities } = deviceRef.current || {};
+            LOG.info(`MS▶ consume(${kind})`);
+            const params = await new Promise((r) =>
+              socket.emit('consume', { rtpCapabilities, kind, streamId: String(liveId) }, (resp) => { LOG.info(`ACK✔ consume(${kind})`, resp); r(resp); })
+            );
 
             if (!params || params?.error) {
+              LOG.warn(`MS⚠ consume(${kind}) no-params`, params);
               if (!serverEnded && statusRef.current !== 'ended' && statusRef.current !== 'vod') {
                 setIsStreamAvailable(false);
                 setStreamStatus('waiting');
@@ -437,13 +600,14 @@ export default function Merge() {
             }
 
             const consumer = await recvTransportRef.current.consume(params);
+            LOG.info(`MS✔ consumer(${kind})`, { id: consumer.id, trackId: consumer.track?.id });
             const track = consumer.track;
 
             const attachNow = async () => {
               attachTrack(track, kind);
-              try { await consumer.resume(); } catch { }
-              try { await consumer.requestKeyFrame?.(); } catch { }
-              socket.emit('resume-consumer', { consumerId: consumer.id });
+              try { await consumer.resume(); LOG.info(`MS✔ resume(${kind})`); } catch (e) { LOG.warn(`MS⚠ resume(${kind})`, e); }
+              try { await consumer.requestKeyFrame?.(); LOG.info(`MS✔ keyframe(${kind})`); } catch { }
+              socket.emit('resume-consumer', { consumerId: consumer.id }, (ack) => LOG.info('ACK✔ resume-consumer', ack));
             };
 
             if (track.muted) {
@@ -453,7 +617,7 @@ export default function Merge() {
             }
             return true;
           } catch (err) {
-            console.error(`[MS] consumeKind(${kind}) error:`, err);
+            LOG.error(`MS✖ consume(${kind})`, err);
             return false;
           }
         };
@@ -464,28 +628,33 @@ export default function Merge() {
         if (!okV && !okA) {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
+          LOG.warn('STATUS waiting (no consumer ready)');
           socket.once('new-producer', async () => {
+            LOG.info('MS evt new-producer -> retry consume');
             const vv = await consumeKind('video');
             const aa = await consumeKind('audio');
             if (vv || aa) {
               setIsStreamAvailable(true);
               setStreamStatus('streaming');
+              LOG.info('STATUS streaming (after new-producer)');
               tryPlay(remoteVideoRef.current);
             }
           });
         } else {
           setIsStreamAvailable(true);
           setStreamStatus('streaming');
+          LOG.info('STATUS streaming (consumer ready)');
           tryPlay(remoteVideoRef.current);
         }
       } catch (error) {
-        console.error('Mediasoup 설정 실패:', error);
+        LOG.error('MS✖ setup', error);
       }
     };
 
     socket.on('connect', setupMediasoup);
 
     socket.on('producer-closed', async () => {
+      LOG.warn('MS evt producer-closed -> teardown + recheck');
       setStreamStatus('ended');
       setIsStreamAvailable(false);
 
@@ -507,20 +676,23 @@ export default function Merge() {
 
         if (raw === 'ENDED') {
           if (record) setVideoToVod(record);
-          else { setIsStreamAvailable(false); setStreamStatus('ended'); }
+          else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (producer closed, no record)'); }
         } else if (raw === 'LIVE' || raw === 'WAITING') {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
+          LOG.info('STATUS waiting (producer closed, still live/waiting)');
         } else {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
+          LOG.warn('STATUS waiting (producer closed, unknown raw)');
         }
       } catch (e) {
-        console.warn('종료 후 VOD 전환 재조회 실패:', e);
+        LOG.warn('MS recheck after producer-closed✖', e);
       }
     });
 
     return () => {
+      LOG.info('CLEANUP', 'disconnect socket & close transport');
       try { socket.disconnect(); } catch { }
       try { recvTransportRef.current?.close(); } catch { }
 
@@ -536,7 +708,7 @@ export default function Merge() {
         subtitleTimerRef.current = null;
       }
     };
-  }, [liveId, serverEnded, streamStatus]);
+  }, [liveId]);
 
   /* =========================
      Mute 카운트다운
@@ -568,9 +740,12 @@ export default function Merge() {
             type: m.contentType === 'SYSTEM' ? 'admin' : 'user',
             createdAt: m.createdAt,
           })));
+          LOG.info('CHAT history✔', { count: history.length });
+        } else {
+          LOG.warn('CHAT history⚠ non-200', res.status);
         }
       } catch (e) {
-        console.error('[Chat] 최근 메시지 로딩 실패:', e);
+        LOG.error('CHAT history✖', e);
       }
     };
     fetchRecent();
@@ -588,8 +763,9 @@ export default function Merge() {
           if (!response.ok) return;
           const data = await response.json();
           if (data.isBanned) setIsBanned(true);
+          LOG.info('CHAT moderation status', data);
         } catch (error) {
-          console.error('Ban status check error:', error);
+          LOG.error('Ban status check✖', error);
         }
       };
       checkBanStatus();
@@ -597,7 +773,7 @@ export default function Merge() {
   }, [myUserId, artistId]);
 
   /* =========================
-     유틸 & 핸들러
+     핸들러
      ========================= */
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -634,8 +810,23 @@ export default function Merge() {
   };
 
   /* =========================
-     스타일 (프로모션/상품 통일)
+     Render
      ========================= */
+  if (isBanned) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f8f9fa' }}>
+        <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>🚫 접근이 차단되었습니다 🚫</h2>
+        <p style={{ fontSize: '1.2rem', color: '#6c757d', marginBottom: '2rem' }}>이 라이브에 대한 접근 권한이 없습니다.</p>
+        <button
+          onClick={() => navigate('/main')}
+          style={{ padding: '10px 20px', fontSize: '1rem', color: '#fff', backgroundColor: '#007bff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+        >
+          메인으로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
   const styles = {
     section: { background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: 20, marginTop: 30 },
     title: { fontSize: 20, fontWeight: 800, color: '#222', margin: 0, paddingBottom: 12, borderBottom: '2px solid #eee', display: 'flex', alignItems: 'center', gap: 8 },
@@ -662,24 +853,6 @@ export default function Merge() {
     btnHover: { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(0,0,0,0.10)' },
   };
 
-  /* =========================
-     Render
-     ========================= */
-  if (isBanned) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f8f9fa' }}>
-        <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>🚫 접근이 차단되었습니다 🚫</h2>
-        <p style={{ fontSize: '1.2rem', color: '#6c757d', marginBottom: '2rem' }}>이 라이브에 대한 접근 권한이 없습니다.</p>
-        <button
-          onClick={() => navigate('/main')}
-          style={{ padding: '10px 20px', fontSize: '1rem', color: '#fff', backgroundColor: '#007bff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-        >
-          메인으로 돌아가기
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="live-page-container">
       {/* 헤더 */}
@@ -704,7 +877,7 @@ export default function Merge() {
             controls={streamStatus === 'vod' ? false : undefined}
             playsInline
             className="live-page-video"
-            onResize={(e) => console.log('[Video] resize', e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
+            onResize={VERBOSE && VIDEO_DEBUG ? (e) => LOG.info('VIDEO resize', { w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight }) : undefined}
             onLoadedMetadata={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
             onLoadedData={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
             onCanPlay={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
