@@ -164,7 +164,7 @@ export default function ArtistIntroPage() {
 
             cursor: "pointer"
           }}>
-            구독
+            스토어 바로가기 
           </button>
         </div>
       </div>
@@ -429,23 +429,6 @@ export default function ArtistIntroPage() {
             <FaTiktok size={28} color="#000000ff" />
           </a>
         </div>
-
-        {/* 스토어 버튼 */}
-        <a
-          href={`/shop/products/${artist.id}`}
-          style={{
-            background: "#fff",
-            color: "#000",
-            border: "2.5px solid black",
-            fontWeight: 600,
-            fontSize: 16,
-            padding: "10px 28px",
-            borderRadius: 9999,
-            textDecoration: "none",
-          }}
-        >
-          스토어 바로가기 &gt;
-        </a>
       </div>
     </div>
   );
