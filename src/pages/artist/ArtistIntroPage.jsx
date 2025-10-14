@@ -185,8 +185,17 @@ export default function ArtistIntroPage() {
 
       {/* 실시간 라이브 영역 -> 실시간 시청자 수, 조회수 */}
       <div style={{ marginBottom: 120 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 30 }}>
+        <div style={{ display: "flex",flexDirection: "column", justifyContent: "flex-start", marginBottom: 30 }}>
           <div style={{ fontWeight: 700, fontSize: 22, color: "#0c0c0cff" }}>ON AIR</div>
+          <div style={{  // 소개글 
+            color: "#4c4c4cff",
+            fontSize: 16,
+            marginTop: 50,
+            textAlign: "center"
+           
+          }}>
+            진행중인 생방송이 없습니다.
+          </div>
         </div>
         <div style={{ display: "flex", gap: 24, }}>
           {liveStreams.map((live) => ( //생방중인 라이브는 항상 한개라고 가정함
