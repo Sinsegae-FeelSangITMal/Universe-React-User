@@ -23,6 +23,8 @@ export default function ProductDetail() {
   const { user } = useAuthStore();
   const [cart, setCart] = useState(null);
 
+  const [myMembership, setMyMembership] = useState(null);
+
   // 유저의 장바구니 정보 불러오기
   useEffect(() => {
     if (user?.userId) {
@@ -81,12 +83,31 @@ export default function ProductDetail() {
     (async () => {
       try {
         const res = await getMembership(user.userId);
+
         setMembership(res.data.data);
+        console.log(res.data.data);
       } catch (e) {
         console.error("멤버십 정보 불러오기 실패:", e);
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!membership || !detail) return;
+  
+    const today = new Date();
+    const found = membership.find((m) => {
+      if (m.artistName !== detail.artistName) return false;
+      const start = new Date(m.startDate);
+      const end = new Date(m.endDate);
+      return today >= start && today <= end;
+    });
+  
+    setMyMembership(found);
+
+    console.log("mymembership" + found);
+
+  }, [membership, detail]);
 
   // 발매일 검증 함수
   const isNotReleasedYet = (detail) => {
@@ -95,6 +116,7 @@ export default function ProductDetail() {
     const now = new Date();
     return openDate > now; // 발매일이 미래면 true
   };
+
 
   // 멤버십 검증 함수
   const isFanLimitedBlocked = (detail) => {
@@ -105,7 +127,7 @@ export default function ProductDetail() {
       const today = new Date();
 
       // 유저가 해당 아티스트 멤버십을 가지고 있는지 검사
-      const hasValidMembership = membership.some((m) => {
+     const hasValidMembership = membership.some((m) => {
         if (m.artistName !== detail.artistName) return false;
         const start = new Date(m.startDate);
         const end = new Date(m.endDate);
@@ -114,7 +136,6 @@ export default function ProductDetail() {
 
       return !hasValidMembership; // 차단되면 true
     }
-
     return false; // 일반 상품은 항상 통과
   };
 
@@ -452,7 +473,38 @@ export default function ProductDetail() {
 
             {/* 버튼 */}
             <div className="d-flex gap-3">
-              { !detail.initialStock ? (
+              { (detail.categoryName === "Membership" && myMembership?.startDate) ? (
+                 <div
+                      className="border-btn flex-grow-1 "
+                      style={{ 
+                        width: "100px", margin: "10px 5px 10px 0px", cursor: "text",
+                        display: "flex",             // 🔹 플렉스 컨테이너
+                        justifyContent: "center",    // 🔹 가로 중앙
+                        alignItems: "center",
+                        color: "#848484ff",
+                        background: "#f3f3f3",  
+                      }}
+                    >
+
+                      
+                      유효기간  
+                      { myMembership?.startDate 
+                      ? ` ${new Date(myMembership.startDate).toLocaleDateString("ko-KR",{
+                         year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }
+                      )} ~ ${new Date(myMembership.endDate).toLocaleDateString("ko-KR", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}`
+                      : "정보 없음"}
+                            
+                    </div>
+                )
+
+                : !detail.initialStock ? (
                    <div
                       className="border-btn flex-grow-1 "
                       style={{ 
@@ -483,7 +535,7 @@ export default function ProductDetail() {
                 구매하기
               </button>
               </>
-            )}
+            )}                 
             </div>
 
             {/* 간단 설명 */}
