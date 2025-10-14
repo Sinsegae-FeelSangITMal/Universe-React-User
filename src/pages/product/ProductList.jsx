@@ -81,165 +81,271 @@ export default function ProductList() {
 
   return (
     <main>
-      {/* New Header Banner */}
-      <div style={{
-        padding: '4rem 2rem',
-        marginBottom: '2rem',
-        borderRadius: '12px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white',
-        textAlign: 'center',
-        boxShadow: '0 10px 20px rgba(0,0,0,0.1)'
-      }}>
-        <h1 style={{ fontWeight: 600, fontSize: '3rem', margin: 0 }}>{artist ? artist.name : "Artist"}</h1>
-      </div>
+         {/* breadcrumb (inline styles only) */}
+      <div
+        style={{
+          marginBottom: 30,
+          padding: '14px 0',
+          background: 'linear-gradient(180deg, #f7f2ff 0%, #fbf9ff 100%)',
+          border: '1px solid #ece4ff',
+          borderRadius: 16,
+          boxShadow: '0 8px 24px rgba(115,74,222,0.08)',
+        }}
+      >
+        <div className="container" style={{ maxWidth: 1140 }}>
+          <div className="row">
+            <div className="col-lg-12">
+              <nav aria-label="breadcrumb">
+                <ol
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 10,
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                    color: '#3b2b6d',
+                    fontWeight: 700,
+                  }}
+                >
+                  <li>
+                    <Link
+                      to="/"
+                      style={{
+                        color: '#734ade',
+                        textDecoration: 'none',
+                        fontWeight: 700,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      Home
+                    </Link>
+                  </li>
 
-      {/* Main Content Area */}
+                  <li aria-hidden="true" style={{ color: '#9a86ff', fontWeight: 700 }}>›</li>
+
+                  <li>
+                    <Link
+                      to="#"
+                      style={{
+                        color: '#734ade',
+                        textDecoration: 'none',
+                        fontWeight: 700,
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      Shop
+                    </Link>
+                  </li>
+
+                  <li aria-hidden="true" style={{ color: '#9a86ff', fontWeight: 700 }}>›</li>
+
+                  <li
+                    aria-current="page"
+                    style={{
+                      color: '#3b2b6d',
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                   {artist ? `${artist.name}` : ""}
+                  </li>
+                </ol>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* listing Area */}
       <div className="category-area">
         <div className="container">
           <div className="row">
-            {/* Left Sidebar: Redesigned Categories */}
-            <div className="col-xl-3 col-lg-3 col-md-4">
-              <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '12px' }}>
-                <h4 style={{ fontWeight: 400, marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #eee'}}>Categories</h4>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  <li key="all">
-                    <button 
-                      onClick={() => { setSelectedCategoryId(""); setPageInfo(p => ({ ...p, page: 0 })); }}
-                      style={{
-                        width: '100%', textAlign: 'left', padding: '10px 15px', marginBottom: '5px', borderRadius: '8px', border: 'none',
-                        background: selectedCategoryId === "" ? '#764ba2' : 'transparent',
-                        color: selectedCategoryId === "" ? 'white' : '#333',
-                        fontWeight: selectedCategoryId === "" ? 'bold' : 'normal',
-                        cursor: 'pointer', transition: 'background 0.2s ease'
-                      }}
-                    >
-                      All Categories
-                    </button>
-                  </li>
-                  {categories.map((c) => (
-                    <li key={c.id}>
-                      <button 
-                        onClick={() => { setSelectedCategoryId(c.id); setPageInfo(p => ({ ...p, page: 0 })); }}
-                        style={{
-                          width: '100%', textAlign: 'left', padding: '10px 15px', marginBottom: '5px', borderRadius: '8px', border: 'none',
-                          background: selectedCategoryId === c.id ? '#764ba2' : 'transparent',
-                          color: selectedCategoryId === c.id ? 'white' : '#333',
-                          fontWeight: selectedCategoryId === c.id ? 'bold' : 'normal',
-                          cursor: 'pointer', transition: 'background 0.2s ease'
-                        }}
-                      >
-                        {c.categoryName}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+            <div className="col-xl-7 col-lg-8 col-md-10">
+              <div className="section-tittle mb-50">
+                <h2 style={{ minWidth: "1200px" }}>Shop with {artist ? `${artist.name}` : ""}</h2>
+                <p>{pageInfo.totalElements.toLocaleString()} items found</p>
               </div>
             </div>
+          </div>
 
-            {/* Right Product List */}
+          <div className="row">
+            {/* Left content */}
+              <div className="col-xl-3 col-lg-3 col-md-4">
+                <div className="category-listing mb-50">
+                  <div className="single-listing">
+                    <div
+                      style={{
+                        marginBottom: 30,
+                        padding: "14px 0",
+                        background: "linear-gradient(180deg, #f7f2ff 0%, #fbf9ff 100%)",
+                        border: "1px solid #ece4ff",
+                        borderRadius: 16,
+                        boxShadow: "0 8px 24px rgba(115,74,222,0.08)",
+                      }}
+                    >
+                      <div className="category-list" style={{ padding: "0 16px" }}>
+                        {/* All Categories */}
+                        <div
+                          onClick={() => {
+                            setSelectedCategoryId("");
+                            setPageInfo((p) => ({ ...p, page: 0 }));
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.05)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1.0)")}
+                          style={{
+                            cursor: "pointer",
+                            padding: "10px 14px",
+                            borderRadius: "12px",
+                            marginBottom: "8px",
+                            background:
+                              selectedCategoryId === ""
+                                ? "linear-gradient(180deg, #734ade 0%, #8c5bff 100%)"
+                                : "transparent",
+                            color: selectedCategoryId === "" ? "#fff" : "#4b3f72",
+                            fontWeight: selectedCategoryId === "" ? "600" : "500",
+                            boxShadow:
+                              selectedCategoryId === ""
+                                ? "0 4px 12px rgba(115,74,222,0.25)"
+                                : "none",
+                            transition: "all 0.2s ease-in-out",
+                          }}
+                        >
+                          All Categories
+                        </div>
+
+                        {/* Category Items */}
+                        {categories.map((c) => {
+                          const selected = selectedCategoryId === c.id;
+                          return (
+                            <div
+                              key={c.id}
+                              onClick={() => {
+                                setSelectedCategoryId(c.id);
+                                setPageInfo((p) => ({ ...p, page: 0 }));
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.05)")}
+                              onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1.0)")}
+                              style={{
+                                cursor: "pointer",
+                                padding: "10px 14px",
+                                borderRadius: "12px",
+                                marginBottom: "8px",
+                                background: selected
+                                  ? "linear-gradient(180deg, #734ade 0%, #8c5bff 100%)"
+                                  : "transparent",
+                                color: selected ? "#fff" : "#4b3f72",
+                                fontWeight: selected ? "600" : "500",
+                                boxShadow: selected
+                                  ? "0 4px 12px rgba(115,74,222,0.25)"
+                                  : "none",
+                                transition: "all 0.2s ease-in-out",
+                              }}
+                            >
+                              {c.categoryName}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+
+            {/* Right content */}
             <div className="col-xl-9 col-lg-9 col-md-8">
-              {loading ? (
-                <div className="text-center py-5">Loading...</div>
-              ) : (
-                <>
+              <div className="new-arrival new-arrival2">
+                {loading ? (
+                  <div className="text-center py-5">Loading...</div>
+                ) : (
                   <div className="row">
                     {products.length === 0 ? (
-                      <div className="col-12 text-center py-5"><h3>상품이 없습니다.</h3></div>
+                      <div className="col-12 text-center py-5">상품이 없습니다.</div>
                     ) : (
                       products.map((p) => (
                         <div key={p.id} className="col-xl-4 col-lg-4 col-md-6 col-sm-6">
-                          <div style={{
-                            border: '1px solid #eee',
-                            borderRadius: '12px',
-                            overflow: 'hidden',
-                            marginBottom: '30px',
-                            boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
-                            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                            cursor: 'pointer',
-                            display: 'flex', flexDirection: 'column', height: '97%'
-                          }}
-                           onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.1)'; }}
-                           onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.05)'; }}
-                           onClick={() => navigate(`/shop/product/${p.id}`)}
-                          >
-                            <div style={{ position: 'relative' }}>
-                              <img
-                                src={p.mainImageUrl || DUMMY_IMG}
-                                alt={p.productName}
-                                style={{ width: "100%", height: 280, objectFit: "cover" }}
-                                onError={(e) => (e.currentTarget.src = DUMMY_IMG)}
-                              />
-                              <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-end' }}>
-                                {p.stockQty === 0 && (
-                                  <span style={{ background: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 8px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' }}>
-                                    SOLD OUT
-                                  </span>
-                                )}
-                                {p.fanLimited && (
-                                  <span style={{ background: '#7e5bef', color: 'white', padding: '4px 8px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' }}>
-                                    MEMBERSHIP
-                                  </span>
-                                )}
-                              </div>
+                          <div
+                            className="single-new-arrival mb-50 text-center">
+                            <div className="popular-img">
+                              <Link to={`/shop/product/${p.id}`}>
+                                <img
+                                  src={p.mainImageUrl || DUMMY_IMG}
+                                  alt={p.productName}
+                                  style={{ width: "100%", height: 260, objectFit: "cover", cursor: "pointer" }}
+                                  onError={(e) => (e.currentTarget.src = DUMMY_IMG)}
+                                />
+                              </Link>
                             </div>
-                            <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-                              {/* 왼쪽: 상품명 + Release를 한 줄로 직렬 나열 */}
-                              <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px' }}>
-                                <span style={{ fontSize: 18, fontWeight: 600 }}>
+                            <div className="popular-caption">
+                              <Link to={`/shop/product/${p.id}`}>
+                                <h3
+                                  style={{ cursor: "pointer" }}>
                                   {p.productName}
-                                </span>
-                                <span style={{ fontSize: 12, color: '#667eea', fontWeight: 600 }}>
-                                  Release:&nbsp;
-                                  {new Date(p.openDate).toLocaleString('ko-KR', {
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
+                                </h3>
+                              </Link>
+                              <span>₩ {toKRW(p.price)}</span>
+                              <div className="mt-2" style={{ fontSize: 12, color: "#B084DC" }}>
+                                {/* 발매 예정인 상품만 발매 시작 시간 띄우기 */}
+                                {p.openDate && new Date(p.openDate) > new Date() && (
+                                  <div>발매 시작 시간 : {p.openDate ? p.openDate.replace("T", " ") : ""}</div>
+                                )}
                               </div>
-
-                              {/* 오른쪽: 가격(오른쪽 정렬) */}
-                              <div style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 700, color: '#333', whiteSpace: 'nowrap' }}>
-                                ₩ {toKRW(p.price)}
-                              </div>
+                              {p.fanOnly && (
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#B084DC",
+                                    marginTop: "5px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  [ 멤버십 전용 상품 ]
+                                </div>
+                              )}
+                              {/* ✅ 품절 배지 */}
+                              {p.stockQty === 0 && (
+                                <div
+                                  style={{
+                                    fontSize: 14,
+                                    color: "#cb0000ff",
+                                    marginTop: "5px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Sold Out
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       ))
                     )}
                   </div>
+                )}
 
-                  {/* Redesigned Pagination */}
-                  {pageInfo.totalPages > 1 && (
-                    <nav aria-label="Page navigation" style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', gap: '0.5rem' }}>
-                        {Array.from({ length: pageInfo.totalPages }, (_, i) => (
-                          <li key={i} className="page-item">
-                            <button
-                              onClick={() => setPageInfo((p) => ({ ...p, page: i }))}
-                              style={{
-                                border: '1px solid #ddd',
-                                background: i === pageInfo.page ? '#764ba2' : 'white',
-                                color: i === pageInfo.page ? 'white' : '#555',
-                                padding: '0.5rem 1rem',
-                                borderRadius: '0.5rem',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                transition: 'background-color 0.2s ease, color 0.2s ease'
-                              }}
-                            >
-                              {i + 1}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </nav>
-                  )}
-                </>
-              )}
+                {/* Pagination */}
+                {pageInfo.totalPages > 1 && (
+                  <div className="row justify-content-center">
+                    <div className="room-btn mt-20">
+                      {Array.from({ length: pageInfo.totalPages }, (_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setPageInfo((p) => ({ ...p, page: i }))}
+                          className={`border-btn mx-1 ${i === pageInfo.page ? "bg-dark text-white" : ""}`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
+            {/* Right content End */}
           </div>
         </div>
       </div>
