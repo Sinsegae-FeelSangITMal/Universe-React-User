@@ -443,6 +443,9 @@ export default function Merge() {
     const getAccessToken = () => useAuthStore.getState().accessToken;
 
     const sock = new SockJS('/ws-subtitle', null, { withCredentials: true });
+
+    console.log('SockJS', sock);
+    
     const subtitleClient = new StompClient({
       webSocketFactory: () => sock,
       reconnectDelay: 4000,

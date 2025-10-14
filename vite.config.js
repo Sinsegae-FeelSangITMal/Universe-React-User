@@ -1,4 +1,7 @@
 // vite.config.js (핵심만)
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
 export default ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const mediasoupTarget =
@@ -32,8 +35,8 @@ export default ({ mode }) => {
           changeOrigin: true,
           secure: false,
           proxyTimeout: 120000, // ← 중요
+          ws: true,
           timeout: 120000,
-          // headers: { Origin: 'http://localhost:4444' }, // 필요시
         },
 
         // mediasoup
