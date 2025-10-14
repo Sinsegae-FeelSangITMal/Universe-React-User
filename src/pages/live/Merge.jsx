@@ -1,4 +1,3 @@
-// Merge.jsx
 /* eslint-disable no-empty */
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,20 +8,70 @@ import { Client as StompClient } from '@stomp/stompjs';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth';
 
-import { getStream } from "../../utils/StreamApi";
-import { getStreamProductsByStream } from "../../utils/StreamProductApi";
-import { getPromotion } from "../../utils/PromotionApi";
+import { getStream } from '../../utils/StreamApi';
+import { getStreamProductsByStream } from '../../utils/StreamProductApi';
+import { getPromotion } from '../../utils/PromotionApi';
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 
-// ---- Endpoints (vite proxy 기준) ----
-// const SERVER_URL = '/'; // Connect to the same host, will be routed by Gateway
-const SERVER_URL = import.meta.env.VITE_MEDIASOUP_HOST || 'http://localhost:4000';
-const CHAT_API_BASE_URL = '/chatapi'; // Routed by Gateway
-const MAIN_API_URL = '/api'; // Routed by Gateway
-const CHAT_WS_URL = '/ws'; // Routed by Gateway
-const SOCKET_PATH = '/socket.io';
+/* =========================
+   Quiet Logger (env-toggle + throttling)
+   ========================= */
+const VERBOSE = (import.meta.env.VITE_LOG_VERBOSE ?? 'false') === 'true';
+const VIDEO_DEBUG = false; // 비디오 이벤트/리사이즈 로그를 보고 싶을 때만 true
 
-// ---- STOMP Topics ----
+const makeThrottled = (fn, intervalMs = 3000) => {
+  let last = 0;
+  return (...args) => {
+    const now = performance.now();
+    if (now - last >= intervalMs) {
+      last = now;
+      fn(...args);
+    }
+  };
+};
+const LOG = {
+  info: (...a) => { if (VERBOSE) console.log('[LIVE]', ...a); },
+  warn: (...a) => { if (VERBOSE) console.warn('[LIVE]', ...a); },
+  error: (...a) => { if (VERBOSE) console.error('[LIVE]', ...a); },
+  infoThrottled: makeThrottled((...a) => console.log('[LIVE]', ...a), 5000),
+  warnThrottled: makeThrottled((...a) => console.warn('[LIVE]', ...a), 5000),
+};
+
+/* =========================
+   Endpoints (게이트웨이 기준)
+   ========================= */
+const _resolveBase = (v, fallback = '') => {
+  if (!v) return fallback;
+  if (String(v).toLowerCase() === 'same-origin') return '';
+  return v;
+};
+
+const SERVER_URL = _resolveBase(import.meta.env.VITE_MEDIASOUP_HOST, '');
+const SOCKET_PATH_RAW = import.meta.env.VITE_MEDIASOUP_PATH || '/socket.io';
+const SOCKET_PATH = SOCKET_PATH_RAW.startsWith('/') ? SOCKET_PATH_RAW : `/${SOCKET_PATH_RAW}`;
+const CHAT_API_BASE_URL = '/chatapi';
+const MAIN_API_URL = '/api';
+const CHAT_WS_URL = '/ws';
+
+LOG.info('ENV', {
+  VITE_API_URL: import.meta.env.VITE_API_URL,
+  VITE_MEDIASOUP_HOST: import.meta.env.VITE_MEDIASOUP_HOST,
+  SERVER_URL,
+  SOCKET_PATH,
+  CHAT_API_BASE_URL,
+  CHAT_WS_URL,
+});
+
+const toGatewayUrl = (p) => {
+  if (!p) return '';
+  if (/^https?:\/\//i.test(p)) return p;
+  const base = import.meta.env.VITE_API_URL || '';
+  return `${base}${p}`;
+};
+
+/* =========================
+   STOMP Topics
+   ========================= */
 const TOPIC_SUBSCRIBE = (id) => `/topic/public/${id ?? 'global'}`;
 const APP_SEND = (id) => `/app/live/${id ?? 'global'}`;
 
@@ -31,30 +80,30 @@ export default function Merge() {
   const navigate = useNavigate();
   const { user, accessToken } = useAuthStore();
 
-  // ===== Refs =====
+  /* ========== Refs ========== */
   const remoteVideoRef = useRef(null);
   const chatMessagesRef = useRef(null);
   const composingRef = useRef(false);
   const stompRef = useRef(null);
-
   const socketRef = useRef(null);
   const deviceRef = useRef(null);
   const recvTransportRef = useRef(null);
   const subtitleTimerRef = useRef(null);
-  const initOnceRef = useRef(false); // StrictMode 중복 실행 가드
-
-  // 현재 video.srcObject에 할당/관리할 MediaStream
+  const initOnceRef = useRef(false);
   const msRef = useRef(null);
 
-  // ===== States =====
+  /* ========== States ========== */
   const [chatList, setChatList] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isMuted, setIsMuted] = useState(false);
   const [muteSecondsLeft, setMuteSecondsLeft] = useState(0);
   const [isBanned, setIsBanned] = useState(false);
 
-  const [streamStatus, setStreamStatus] = useState('waiting'); // waiting | streaming | ended | vod
+  const [streamStatus, setStreamStatus] = useState('loading'); // loading | waiting | streaming | ended | vod
+  const [serverEnded, setServerEnded] = useState(false);
+  const [isVodPlaying, setIsVodPlaying] = useState(false);
   const [isStreamAvailable, setIsStreamAvailable] = useState(false);
+
   const [subtitle, setSubtitle] = useState(null);
   const [selectedLang, setSelectedLang] = useState('ko');
   const [viewerCount, setViewerCount] = useState(0);
@@ -63,104 +112,133 @@ export default function Merge() {
   const [promotion, setPromotion] = useState(null);
   const [productDetails, setProductDetails] = useState([]);
 
+  /* 최신 status ref */
+  const statusRef = useRef(streamStatus);
+  useEffect(() => { statusRef.current = streamStatus; }, [streamStatus]);
+
+  const isVodMode = streamStatus === 'vod';
+  const showViewerBadge = streamStatus === 'streaming' && isStreamAvailable;
+
   const myUserId = user?.userId || 0;
   const sender = user?.nickname || '나';
 
-  // 🔹 VOD 전환 헬퍼
+  /* =========================
+     VOD 전환 & 재생 컨트롤
+     ========================= */
   const setVideoToVod = (recordPath) => {
+    LOG.info('VOD▶ setVideoToVod', { recordPath });
     const videoEl = remoteVideoRef.current;
     if (!videoEl) return;
 
-    // 실시간 트랙 정리
     if (videoEl.srcObject) {
       try { videoEl.srcObject.getTracks?.().forEach((t) => t.stop?.()); } catch { }
       videoEl.srcObject = null;
     }
-
-    // 절대/상대 경로 대응
-    const base = import.meta.env.VITE_API_URL || '';
-    const src = recordPath?.startsWith('http')
-      ? recordPath
-      : `${base}${recordPath || ''}`;
-
     videoEl.crossOrigin = 'anonymous';
-    videoEl.src = src;
-    videoEl.controls = true;
+    videoEl.src = toGatewayUrl(recordPath || '');
+    videoEl.controls = false;
     videoEl.muted = false;
     videoEl.playsInline = true;
-    try { videoEl.load(); } catch { }
 
+    try { videoEl.load(); } catch { }
+    try { videoEl.pause(); } catch { }
+
+    setIsVodPlaying(false);
     setIsStreamAvailable(true);
     setStreamStatus('vod');
+    LOG.info('STATUS vod');
   };
 
-  // Merge.jsx 상단 helpers 근처에 이미 msRef가 있으니, 아래 effect를 추가:
+  const handleVodPlay = async () => {
+    const v = remoteVideoRef.current;
+    if (!v) return;
+    try {
+      v.muted = false;
+      await v.play();
+      setIsVodPlaying(true);
+      LOG.info('VOD✔ play');
+    } catch (e) {
+      LOG.error('VOD✖ play', e);
+      toast.error('재생할 수 없습니다.');
+    }
+  };
+
+  const handleVodPause = () => {
+    const v = remoteVideoRef.current;
+    if (!v) return;
+    try { v.pause(); LOG.info('VOD⏸ pause'); } finally { setIsVodPlaying(false); }
+  };
+
+  /* =========================
+     초기 비디오 MediaStream 장착 + 이벤트 로그 (옵션)
+     ========================= */
   useEffect(() => {
     const v = remoteVideoRef.current;
     if (!v) return;
+
     if (!(msRef.current instanceof MediaStream)) {
       msRef.current = new MediaStream();
     }
     if (v.srcObject !== msRef.current) {
       v.srcObject = msRef.current;
     }
-    v.muted = true;         // autoplay 허용
+    v.muted = true;
     v.playsInline = true;
-    // 초기 play 킥(프레임 들어오면 자연스럽게 흐름 이어짐)
+
+    const logEv = (ev) => {
+      if (VERBOSE && VIDEO_DEBUG) LOG.info(`VIDEO ${ev.type}`, { readyState: v.readyState, src: v.src });
+    };
+
+    if (VERBOSE && VIDEO_DEBUG) {
+      ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'error']
+        .forEach((name) => v.addEventListener(name, logEv));
+    }
+
     const p = v.play?.();
     if (p && p.catch) p.catch(() => { });
-  }, []); // ← 최초 1회
 
+    return () => {
+      if (VERBOSE && VIDEO_DEBUG) {
+        ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'error']
+          .forEach((name) => v.removeEventListener(name, logEv));
+      }
+    };
+  }, []);
 
-  // =========================
-  // Video helpers (가장 중요) — 이 블록만 교체
-  // =========================
-
-  // ✅ srcObject를 불필요하게 끊지 않도록 “조건부” 할당만
-  function ensureAssigned(video, ms) {
+  /* =========================
+     트랙 부착
+     ========================= */
+  const tryPlay = (video) => {
     if (!video) return;
-    if (video.srcObject !== ms) {
-      video.srcObject = ms;
-    }
-  }
-
-  function tryPlay(video) {
-    if (!video) return;
-    // 자동재생 친화
     video.muted = true;
     video.playsInline = true;
     const p = video.play?.();
     if (p && p.catch) p.catch(() => { });
-  }
+  };
 
-  // kind 스위치
-  function attachTrack(track, kind) {
+  const attachTrack = (track, kind) => {
+    LOG.info(`TRACK▶ attach ${kind}`, { id: track?.id, muted: track?.muted });
     if (kind === 'video') attachVideoTrack(track);
     else if (kind === 'audio') attachAudioTrack(track);
-    else console.warn('[attachTrack] unknown kind:', kind);
-  }
+  };
 
-  // ✅ 비디오 트랙
-  function attachVideoTrack(track) {
+  const attachVideoTrack = (track) => {
     const video = remoteVideoRef.current;
     if (!video) return;
 
-    // 1) 빈 스트림이 이미 video에 꽂혀있음 (1번 변경에서 처리)
     const ms = (msRef.current instanceof MediaStream) ? msRef.current : new MediaStream();
-
-    // 2) 기존 비디오 트랙만 교체 (stop은 선택, "removeTrack"만 하고 stop은 생략 추천)
-    ms.getVideoTracks().forEach(t => { try { ms.removeTrack(t); } catch { } });
-
-    // 3) 새 비디오 트랙 추가
-    track.enabled = true; // 혹시 모를 disable 방지
+    ms.getVideoTracks().forEach((t) => { try { ms.removeTrack(t); } catch { } });
+    track.enabled = true;
     ms.addTrack(track);
     msRef.current = ms;
 
-    // ❗여기서 srcObject 재할당/비우기/ load() 절대 금지 (이미 1회 꽂아둔 상태)
-    // ensureAssigned(video, ms)도 호출할 필요 없음
+    if (video.srcObject !== ms) video.srcObject = ms;
 
-    // 4) play 킥
     const kick = () => {
+      if (streamStatus !== 'vod') {
+        setIsStreamAvailable(true);
+        setStreamStatus('streaming');
+      }
       const p = video.play?.();
       if (p && p.catch) p.catch(() => { });
     };
@@ -171,73 +249,87 @@ export default function Merge() {
       kick();
     }
 
-    // 보강
-    video.addEventListener('loadeddata', kick, { once: true });
-    video.addEventListener('canplay', kick, { once: true });
-    if ('requestVideoFrameCallback' in video) {
-      // @ts-ignore
-      video.requestVideoFrameCallback(() => kick());
-    }
+    const onReady = () => {
+      if (streamStatus !== 'vod') {
+        setIsStreamAvailable(true);
+        setStreamStatus('streaming');
+      }
+      kick();
+      video.removeEventListener('loadeddata', onReady);
+      video.removeEventListener('canplay', onReady);
+    };
+    video.addEventListener('loadeddata', onReady);
+    video.addEventListener('canplay', onReady);
 
-    // 디버그
-    const s = video.srcObject;
-    console.log('[VideoState]', {
-      videoTracks: s ? s.getVideoTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
-      audioTracks: s ? s.getAudioTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
-      paused: video.paused,
-      readyState: video.readyState
-    });
-  }
+    try {
+      if ('requestVideoFrameCallback' in video) {
+        // @ts-ignore
+        video.requestVideoFrameCallback(() => kick());
+      }
+    } catch { }
+  };
 
-  // ✅ 오디오 트랙
-  function attachAudioTrack(track) {
+  const attachAudioTrack = (track) => {
     const video = remoteVideoRef.current;
     if (!video) return;
 
     const ms = (msRef.current instanceof MediaStream) ? msRef.current : new MediaStream();
-
-    if (!ms.getAudioTracks().some(t => t.id === track.id)) {
+    if (!ms.getAudioTracks().some((t) => t.id === track.id)) {
       track.enabled = true;
       ms.addTrack(track);
     }
     msRef.current = ms;
 
-    // ❗여기도 srcObject 재할당 절대 금지 (이미 1회 꽂힘)
-    // 필요시 플레이 킥만
     const p = video.play?.();
     if (p && p.catch) p.catch(() => { });
-  }
-  // =========================
+    LOG.info('AUDIO✔ attached');
+  };
 
-  // ===== 채팅 자동 스크롤 =====
+  /* =========================
+     채팅 스크롤
+     ========================= */
   useEffect(() => {
     if (chatMessagesRef.current) {
       chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
   }, [chatList]);
 
-  // ===== 데이터 불러오기 =====
+  /* =========================
+     데이터 로딩
+     ========================= */
   useEffect(() => {
     const fetchData = async () => {
+      LOG.info('API▶ getStream', { liveId: String(liveId) });
       try {
         const streamResp = await getStream(liveId);
         const s = streamResp?.data?.data || streamResp?.data || {};
-        setStreamInfo({ title: s?.title, artistName: s?.artistName });
 
-        // 🔹 스트림 상태/녹화에 따라 VOD 모드 전환
-        const status = (s?.srStatus || s?.status || '').toString().toUpperCase();
-        const record = s?.record || s?.srRecord;
-        if (record && (status === 'ENDED' || status === 'END' || status === 'COMPLETED')) {
-          setVideoToVod(record);
+        const normalized = {
+          id: s.id,
+          title: s.title,
+          artistName: s.artistName,
+          time: s.time,
+          endTime: s.endTime,
+          status: (s?.srStatus || s?.status || '').toString().toUpperCase(),
+          record: s?.record || s?.srRecord,
+        };
+        LOG.info('API✔ getStream', normalized);
+        setStreamInfo(normalized);
+
+        const raw = normalized.status;
+        setServerEnded(raw === 'ENDED');
+
+        if (raw === 'ENDED' || raw === 'END' || raw === 'COMPLETED') {
+          if (normalized.record) setVideoToVod(normalized.record);
+          else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (no record)'); }
+        } else if (raw === 'LIVE' || raw === 'WAITING') {
+          setIsStreamAvailable(false);
+          setStreamStatus('waiting');
+          LOG.info('STATUS init -> waiting');
         } else {
-          // 녹화가 없거나 라이브 중이면 대기/라이브 상태는 mediasoup effect에서 처리
-          if (status === 'LIVE') {
-            setStreamStatus('waiting');
-          } else if (status === 'WAITING') {
-            setStreamStatus('waiting');
-          } else if (status === 'ENDED') {
-            setStreamStatus('ended');
-          }
+          setIsStreamAvailable(false);
+          setStreamStatus('ended');
+          LOG.warn('STATUS ended (unknown raw)');
         }
 
         const promoId = s?.promotionId ?? s?.promotion_id ?? s?.PR_ID;
@@ -245,35 +337,45 @@ export default function Merge() {
           const pr = await getPromotion(promoId);
           const d = pr?.data?.data || pr?.data || {};
           setPromotion({ ...d });
+        } else {
+          setPromotion(null);
         }
 
+        LOG.info('API▶ getStreamProductsByStream', { liveId: String(liveId) });
         const spResp = await getStreamProductsByStream(liveId);
         const spList = Array.isArray(spResp?.data?.data) ? spResp.data.data : [];
-        const products = spList.map((sp) => ({ ...(sp.product || {}) }));
-        setProductDetails(products);
+        setProductDetails(spList.map((sp) => ({ ...(sp.product || {}) })));
+        LOG.info('API✔ getStreamProductsByStream', spList);
       } catch (err) {
-        console.error('[Live] 데이터 로딩 실패:', err);
+        LOG.error('API✖ getStream', err);
+        setStreamInfo((prev) => prev ?? { title: '', artistName: '' });
+        setStreamStatus('ended');
       }
     };
     if (liveId) fetchData();
   }, [liveId]);
 
-  // ===== STOMP/SockJS 채팅 =====
+  /* =========================
+   STOMP 채팅 (토큰 자동 복구 포함)
+   ========================= */
   useEffect(() => {
     if (!accessToken) return;
 
-    console.log(`[Chat] SockJS 연결 시도: ${CHAT_WS_URL}`);
+    const getAccessToken = () => useAuthStore.getState().accessToken;
+
     const client = new StompClient({
-      webSocketFactory: () => new SockJS(CHAT_WS_URL),
-      connectHeaders: { Authorization: `Bearer ${accessToken}` }, // CONNECT 프레임에서 검증
+      webSocketFactory: () => new SockJS(CHAT_WS_URL, null, { withCredentials: true }),
+      connectHeaders: { Authorization: `Bearer ${getAccessToken()}` },
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
       reconnectDelay: 4000,
-      onConnect: (frame) => {
-        // 1. 공용 채팅 구독
+      onConnect: () => {
+        LOG.info('CHAT✔ connected');
+
         client.subscribe(TOPIC_SUBSCRIBE(artistId), (f) => {
           try {
             const body = JSON.parse(f.body);
-            // 서버: { roomId, senderId, nickname, content, contentType, createdAt }
-            setChatList((prev) => [
+            setChatList((prev) => ([
               ...prev,
               {
                 id: `${body.createdAt ?? Date.now()}-${Math.random()}`,
@@ -283,240 +385,241 @@ export default function Merge() {
                 type: body.contentType === 'SYSTEM' ? 'admin' : 'user',
                 createdAt: body.createdAt,
               },
-            ]);
+            ]));
           } catch {
-            setChatList((prev) => [
+            setChatList((prev) => ([
               ...prev,
               { id: `${Date.now()}-${Math.random()}`, senderId: -1, nickname: '시스템', text: f.body, type: 'admin' },
-            ]);
+            ]));
           }
         });
 
-        // 2. 개인 시스템 메시지 구독 (Mute/Ban 알림용)
         client.subscribe(`/queue/system-${myUserId}`, (message) => {
           try {
             const payload = JSON.parse(message.body);
-
-            if (payload.code === 'BANNED') {
-              setIsBanned(true);
-            } else if (payload.code === 'MUTED') {
+            if (payload.code === 'BANNED') setIsBanned(true);
+            else if (payload.code === 'MUTED') {
               toast(payload.message, { icon: '🤫' });
               setIsMuted(true);
               setMuteSecondsLeft(30);
             }
-
           } catch (e) {
-            // JSON 파싱 실패 시 일반 텍스트로 처리
             toast.error(message.body);
           }
         });
       },
-      onStompError: (frame) =>
-        console.error('[Chat] Broker error:', frame.headers['message'], frame.body),
-      onWebSocketError: (evt) => console.error('[Chat] WebSocket error:', evt),
-      onWebSocketClose: (evt) => console.warn('[Chat] WebSocket closed:', evt?.code, evt?.reason),
+      onStompError: (frame) => {
+        const msg = frame?.headers?.message || '';
+        LOG.error('CHAT✖ Broker error', msg, frame?.body);
+        if (msg.includes('INVALID_TOKEN')) {
+          try {
+            client.deactivate().then(() => {
+              client.connectHeaders = { Authorization: `Bearer ${getAccessToken()}` };
+              client.activate();
+            });
+          } catch { }
+        }
+      },
+      onWebSocketError: (evt) => LOG.error('CHAT✖ WebSocket error', evt),
+      onWebSocketClose: (evt) => LOG.warnThrottled('CHAT⚠ WebSocket closed', evt?.code, evt?.reason),
     });
 
     client.activate();
     stompRef.current = client;
+
     return () => {
       try { client.deactivate(); } catch { }
       stompRef.current = null;
     };
-  }, [artistId, accessToken, navigate, myUserId]);
+  }, [artistId, accessToken, myUserId]);
 
-  // 🧠 1️⃣ 자막 STOMP 구독 (Spring Boot)
+  /* =========================
+   자막 STOMP (Authorization 포함)
+   ========================= */
   useEffect(() => {
     if (!liveId) return;
 
-    const sockUrl = `/ws-subtitle`;
+    LOG.info('[Subtitle] Opening Web Socket...');
+    const getAccessToken = () => useAuthStore.getState().accessToken;
 
-    console.log(`[Subtitle] Connecting STOMP for liveId=${liveId}`);
-    console.log("[Subtitle] SockJS connecting to:", sockUrl);
-
-    const sock = new SockJS(sockUrl);
+    const sock = new SockJS('/ws-subtitle', null, { withCredentials: true });
     const subtitleClient = new StompClient({
       webSocketFactory: () => sock,
       reconnectDelay: 4000,
-      debug: (str) => console.log("[Subtitle DEBUG]", str),
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
+      connectHeaders: { Authorization: `Bearer ${getAccessToken()}` },
       onConnect: () => {
-        console.log('[Subtitle] STOMP connected');
         subtitleClient.subscribe(`/topic/subtitles/${liveId}`, (frame) => {
           try {
             const payload = JSON.parse(frame.body);
-            console.log('[Subtitle] Received:', payload);
+            LOG.info('SUBTITLE rx', payload);
             setSubtitle(payload);
             if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
             subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
           } catch (err) {
-            console.error('자막 파싱 실패', err);
+            LOG.error('SUBTITLE parse✖', err);
           }
         });
       },
       onStompError: (frame) => {
-        console.error('[Subtitle] Broker error:', frame.headers['message'], frame.body);
+        const msg = frame?.headers?.message || '';
+        LOG.error('[Subtitle] Broker error', msg, frame?.body);
+        if (msg.includes('INVALID_TOKEN')) {
+          try {
+            subtitleClient.deactivate().then(() => {
+              subtitleClient.connectHeaders = { Authorization: `Bearer ${getAccessToken()}` };
+              subtitleClient.activate();
+            });
+          } catch { }
+        }
       },
-      onWebSocketError: (evt) => {
-        console.error('[Subtitle] WebSocket error:', evt);
-      },
-      onWebSocketClose: (evt) => {
-        console.warn('[Subtitle] WebSocket closed:', evt?.code, evt?.reason);
-      },
+      onWebSocketError: (evt) => LOG.error('[Subtitle] WebSocket error', evt),
+      onWebSocketClose: (evt) => LOG.warnThrottled('[Subtitle] WebSocket closed', evt?.code, evt?.reason),
     });
 
     subtitleClient.activate();
-
-    return () => {
-      try { subtitleClient.deactivate(); } catch { }
-    };
+    return () => { try { subtitleClient.deactivate(); } catch { }; };
   }, [liveId]);
 
-
-
-  // 🎥 2️⃣ Mediasoup (socket.io)
+  /* =========================
+     Mediasoup 시청자 연결
+     ========================= */
   useEffect(() => {
-    if (!liveId) {
-      console.warn('[Live] liveId가 없어 소켓 연결을 건너뜁니다.');
-      return;
-    }
-    // 🔹 VOD 모드일 경우 실시간 소비를 건너뜀
-    if (streamStatus === 'vod') {
-      console.log('📁 VOD 모드: mediasoup 연결/consume 스킵');
-      return;
-    }
+    if (!liveId) return;
     if (initOnceRef.current) return;
     initOnceRef.current = true;
 
-    console.log('[Live] EFFECT ENTER', { liveId });
+    LOG.info('BOOT', { liveId: String(liveId), serverEnded, streamStatus });
 
-    const socket = io(SERVER_URL, {
+    const socket = io(SERVER_URL || undefined, {
       path: SOCKET_PATH,
-      transports: ['websocket'],
-      // 서버가 읽는 키 이름을 streamId로!
-      query: { role: 'viewer', streamId: String(liveId) },
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
       forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 800,
+      query: { role: 'viewer', streamId: String(liveId), liveId: String(liveId) },
     });
 
     socketRef.current = socket;
-    window.__viewerSocket = socket;
+
+    // 모든 이벤트 로깅 (ping/pong 제외) → 스로틀 + VERBOSE 조건
+    socket.onAny((event, ...args) => {
+      if (!VERBOSE) return;
+      if (event === 'ping' || event === 'pong') return;
+      LOG.infoThrottled(`SOCK rx ${event}`, ...(args?.length ? args : []));
+    });
 
     socket.on('connect', () => {
-      console.log(`🔗 연결됨: ${socket.id}, role=viewer, liveId=${liveId}`);
-      socket.emit('join-live', { liveId: String(liveId) });
+      LOG.info('SOCK✔ connect', { id: socket.id, url: SERVER_URL || '(same-origin)', path: SOCKET_PATH });
+      const joinPayload = { streamId: String(liveId), liveId: String(liveId) };
+      LOG.info('EMIT▶ join-live', joinPayload);
+      socket.emit('join-live', joinPayload, (ack) => {
+        LOG.info('ACK✔ join-live', ack);
+      });
     });
 
-    socket.on('disconnect', (reason) =>
-      console.warn(`❌ 연결 끊김: ${socket.id}, reason=${reason}`)
-    );
-    socket.on('connect_error', (e) => console.error('[Live] connect_error:', e?.message || e));
+    socket.on('disconnect', (reason) => LOG.warnThrottled('SOCK⚠ disconnect', reason));
+    socket.on('connect_error', (e) => LOG.error('SOCK✖ connect_error', e?.message || e));
+    socket.io.on('reconnect_attempt', (n) => LOG.info('SOCK… reconnect_attempt', n));
+    socket.io.on('reconnect_error', (e) => LOG.warnThrottled('SOCK⚠ reconnect_error', e?.message || e));
+    socket.io.on('reconnect_failed', () => LOG.error('SOCK✖ reconnect_failed'));
+    socket.on('error', (e) => LOG.error('SOCK✖ error', e));
+    socket.on('viewer-count', (count) => { LOG.info('viewer-count', count); setViewerCount(count); });
 
-    socket.on('viewer-count', (count) => {
-      setViewerCount(count);
-    });
-
-    // 자막
+    // Subtitle proxy events over socket.io
     const handleSubtitleEvent = (data) => {
       try {
         let payload = data;
         if (typeof data === 'string') payload = { original: data };
         if (payload.liveId && String(payload.liveId) !== String(liveId)) return;
+        LOG.info('SUBTITLE(socket.io) rx', payload);
+
         const incoming = payload.subtitle || payload;
         const normalized = typeof incoming === 'string' ? { original: incoming } : incoming;
+
         if (normalized?.original) {
           setSubtitle(normalized);
           if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
           subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
         }
       } catch (err) {
-        console.error('자막 처리 중 오류', err);
+        LOG.error('SUBTITLE(socket.io) parse✖', err);
       }
     };
     socket.on('subtitle', handleSubtitleEvent);
     socket.on('subtitle-update', handleSubtitleEvent);
 
-    // ===== Mediasoup setup =====
+    // --- mediasoup setup ---
     const setupMediasoup = async () => {
       try {
-        // 라우터 Capabilities
+        LOG.info('MS▶ getRouterRtpCapabilities');
         const routerRtpCapabilities = await new Promise((r) =>
-          socket.emit('getRouterRtpCapabilities', r)
+          socket.emit('getRouterRtpCapabilities', (resp) => { LOG.info('ACK✔ getRouterRtpCapabilities', resp); r(resp); })
         );
-        console.log('[MS] routerRtpCapabilities:', routerRtpCapabilities);
 
         const device = new mediasoupClient.Device();
         await device.load({ routerRtpCapabilities });
         deviceRef.current = device;
+        LOG.info('MS✔ Device.load', { rtpCapabilities: device.rtpCapabilities });
 
-        // Recv Transport 생성
+        LOG.info('MS▶ createWebRtcTransport', { sending: false });
         const transportParams = await new Promise((r) =>
-          socket.emit('createWebRtcTransport', { sending: false }, r)
+          socket.emit('createWebRtcTransport', { sending: false }, (resp) => { LOG.info('ACK✔ createWebRtcTransport', resp); r(resp); })
         );
-        console.log('[MS] recv transport params:', transportParams);
 
         const transport = device.createRecvTransport(transportParams);
         recvTransportRef.current = transport;
+        LOG.info('MS✔ recvTransport created', { id: transport.id });
 
-        // DTLS connect (서버는 { dtlsParameters }만 받음)
         transport.on('connect', ({ dtlsParameters }, callback, errback) => {
+          LOG.info('MS▶ connectTransport');
           socket.emit('connectTransport', { dtlsParameters }, (error) => {
-            if (error) errback(new Error(error));
-            else callback();
+            if (error) { LOG.error('ACK✖ connectTransport', error); errback(new Error(error)); }
+            else { LOG.info('ACK✔ connectTransport'); callback(); }
           });
         });
 
-        // 비디오/오디오 각각 소비
         const consumeKind = async (kind) => {
-          const { rtpCapabilities } = deviceRef.current;
-          const params = await new Promise((r) =>
-            socket.emit(
-              'consume',
-              { rtpCapabilities, kind, liveId },
-              r
-            )
-          );
+          try {
+            const { rtpCapabilities } = deviceRef.current || {};
+            LOG.info(`MS▶ consume(${kind})`);
+            const params = await new Promise((r) =>
+              socket.emit('consume', { rtpCapabilities, kind, streamId: String(liveId) }, (resp) => { LOG.info(`ACK✔ consume(${kind})`, resp); r(resp); })
+            );
 
-          if (!params || params?.error) {
-            console.warn(`[MS] consume(${kind}) 대기/실패:`, params?.error || params);
-            return false;
-          }
-
-          const consumer = await recvTransportRef.current.consume(params);
-          const track = consumer.track;
-
-          const attachNow = async () => {
-            // 1) 트랙 붙이기 (비디오 먼저, 오디오는 add)
-            attachTrack(track, kind);
-
-            // 2) 소비 재개
-            try { await consumer.resume(); } catch (e) { console.warn('[consume] resume error:', e); }
-
-            // 3) (가능하면) 첫 키프레임 요청 - 비디오 품질/초기프레임 앞당김
-            if (consumer.requestKeyFrame) {
-              try { await consumer.requestKeyFrame(); } catch { }
+            if (!params || params?.error) {
+              LOG.warn(`MS⚠ consume(${kind}) no-params`, params);
+              if (!serverEnded && statusRef.current !== 'ended' && statusRef.current !== 'vod') {
+                setIsStreamAvailable(false);
+                setStreamStatus('waiting');
+              }
+              return false;
             }
 
-            // 4) 서버 ack (서버에서 뭔가 할 게 없으면 무해)
-            socket.emit('resume-consumer', { consumerId: consumer.id });
+            const consumer = await recvTransportRef.current.consume(params);
+            LOG.info(`MS✔ consumer(${kind})`, { id: consumer.id, trackId: consumer.track?.id });
+            const track = consumer.track;
 
-            // 디버깅
-            const v = remoteVideoRef.current;
-            const ms = v?.srcObject;
-            console.log('[VideoState]', {
-              videoTracks: ms ? ms.getVideoTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
-              audioTracks: ms ? ms.getAudioTracks().map(t => ({ id: t.id, muted: t.muted, readyState: t.readyState })) : [],
-              paused: v?.paused,
-              readyState: v?.readyState
-            });
-          };
+            const attachNow = async () => {
+              attachTrack(track, kind);
+              try { await consumer.resume(); LOG.info(`MS✔ resume(${kind})`); } catch (e) { LOG.warn(`MS⚠ resume(${kind})`, e); }
+              try { await consumer.requestKeyFrame?.(); LOG.info(`MS✔ keyframe(${kind})`); } catch { }
+              socket.emit('resume-consumer', { consumerId: consumer.id }, (ack) => LOG.info('ACK✔ resume-consumer', ack));
+            };
 
-          // 트랙이 이미 unmuted면 즉시, 아니면 첫 unmute 때 실행
-          if (track.muted) {
-            try { track.addEventListener?.('unmute', () => { void attachNow(); }, { once: true }); } catch { }
-          } else {
-            void attachNow();
+            if (track.muted) {
+              try { track.addEventListener?.('unmute', () => { void attachNow(); }, { once: true }); } catch { }
+            } else {
+              void attachNow();
+            }
+            return true;
+          } catch (err) {
+            LOG.error(`MS✖ consume(${kind})`, err);
+            return false;
           }
-
-          return true;
         };
 
         const okV = await consumeKind('video');
@@ -525,31 +628,36 @@ export default function Merge() {
         if (!okV && !okA) {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
-          console.warn('[MS] producer 없음 → new-producer 대기');
+          LOG.warn('STATUS waiting (no consumer ready)');
           socket.once('new-producer', async () => {
+            LOG.info('MS evt new-producer -> retry consume');
             const vv = await consumeKind('video');
             const aa = await consumeKind('audio');
             if (vv || aa) {
               setIsStreamAvailable(true);
               setStreamStatus('streaming');
+              LOG.info('STATUS streaming (after new-producer)');
               tryPlay(remoteVideoRef.current);
             }
           });
         } else {
           setIsStreamAvailable(true);
           setStreamStatus('streaming');
+          LOG.info('STATUS streaming (consumer ready)');
           tryPlay(remoteVideoRef.current);
         }
       } catch (error) {
-        console.error('Mediasoup 설정 실패:', error);
+        LOG.error('MS✖ setup', error);
       }
     };
 
     socket.on('connect', setupMediasoup);
 
     socket.on('producer-closed', async () => {
+      LOG.warn('MS evt producer-closed -> teardown + recheck');
       setStreamStatus('ended');
       setIsStreamAvailable(false);
+
       const v = remoteVideoRef.current;
       if (v?.srcObject) {
         v.srcObject.getTracks().forEach((t) => t.stop());
@@ -558,29 +666,43 @@ export default function Merge() {
       msRef.current = null;
       setSubtitle(null);
 
-      // 🔹 방송 종료 시 서버에서 녹화 경로가 생겼는지 재조회 후 VOD 전환 시도
       try {
         const streamResp = await getStream(liveId);
         const s = streamResp?.data?.data || streamResp?.data || {};
         const record = s?.record || s?.srRecord;
-        if (record) {
-          setVideoToVod(record);
+        const raw = (s?.srStatus || s?.status || '').toString().toUpperCase();
+
+        setServerEnded(raw === 'ENDED');
+
+        if (raw === 'ENDED') {
+          if (record) setVideoToVod(record);
+          else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (producer closed, no record)'); }
+        } else if (raw === 'LIVE' || raw === 'WAITING') {
+          setIsStreamAvailable(false);
+          setStreamStatus('waiting');
+          LOG.info('STATUS waiting (producer closed, still live/waiting)');
+        } else {
+          setIsStreamAvailable(false);
+          setStreamStatus('waiting');
+          LOG.warn('STATUS waiting (producer closed, unknown raw)');
         }
       } catch (e) {
-        console.warn('종료 후 VOD 전환 재조회 실패:', e);
+        LOG.warn('MS recheck after producer-closed✖', e);
       }
     });
 
     return () => {
-      console.log('[Live] cleanup: disconnect');
+      LOG.info('CLEANUP', 'disconnect socket & close transport');
       try { socket.disconnect(); } catch { }
       try { recvTransportRef.current?.close(); } catch { }
+
       const v = remoteVideoRef.current;
       if (v?.srcObject) {
         v.srcObject.getTracks().forEach((t) => t.stop());
         v.srcObject = null;
       }
       msRef.current = null;
+
       if (subtitleTimerRef.current) {
         clearTimeout(subtitleTimerRef.current);
         subtitleTimerRef.current = null;
@@ -588,7 +710,9 @@ export default function Merge() {
     };
   }, [liveId]);
 
-  // ===== Mute 타이머 =====
+  /* =========================
+     Mute 카운트다운
+     ========================= */
   useEffect(() => {
     if (!isMuted || muteSecondsLeft <= 0) {
       if (isMuted) setIsMuted(false);
@@ -598,7 +722,9 @@ export default function Merge() {
     return () => clearInterval(timerId);
   }, [isMuted, muteSecondsLeft]);
 
-  // ===== 최근 메시지 =====
+  /* =========================
+     최근 메시지 로드
+     ========================= */
   useEffect(() => {
     if (!artistId) return;
     const fetchRecent = async () => {
@@ -606,60 +732,49 @@ export default function Merge() {
         const res = await fetch(`${CHAT_API_BASE_URL}/rooms/${artistId}/messages`);
         if (res.ok) {
           const history = await res.json();
-          const formatted = history.map((m) => ({
+          setChatList(history.map((m) => ({
             id: `${m.createdAt ?? Date.now()}-${Math.random()}`,
             senderId: m.senderId ?? 0,
             nickname: m.nickname ?? '익명',
             text: m.content ?? '',
             type: m.contentType === 'SYSTEM' ? 'admin' : 'user',
             createdAt: m.createdAt,
-          }));
-          setChatList(formatted);
+          })));
+          LOG.info('CHAT history✔', { count: history.length });
+        } else {
+          LOG.warn('CHAT history⚠ non-200', res.status);
         }
       } catch (e) {
-        console.error('[Chat] 최근 메시지 로딩 실패:', e);
+        LOG.error('CHAT history✖', e);
       }
     };
     fetchRecent();
   }, [artistId]);
 
-  // ===== Ban 체크 =====
+  /* =========================
+     Ban 상태 체크
+     ========================= */
   useEffect(() => {
-    console.log(`[Ban Check] Effect triggered. myUserId: ${myUserId}, artistId: ${artistId}`);
-    // 로그인된 사용자이고, artistId가 있을 때만 체크
     if (myUserId && artistId) {
       const checkBanStatus = async () => {
         const url = `/chatapi/moderation/status?userId=${myUserId}&roomId=${artistId}`;
-        console.log(`[Ban Check] Fetching ban status from: ${url}`);
         try {
           const response = await fetch(url);
-          console.log(`[Ban Check] Response status: ${response.status}`);
-
-          if (!response.ok) {
-            console.error(`[Ban Check] API request failed with status ${response.status}`);
-            return;
-          }
-
+          if (!response.ok) return;
           const data = await response.json();
-          console.log('[Ban Check] Received data:', data);
-
-          if (data.isBanned) {
-            setIsBanned(true);
-          } else {
-            console.log('[Ban Check] User is not banned.');
-          }
+          if (data.isBanned) setIsBanned(true);
+          LOG.info('CHAT moderation status', data);
         } catch (error) {
-          console.error('Ban status check failed with error:', error);
+          LOG.error('Ban status check✖', error);
         }
       };
-
       checkBanStatus();
-    } else {
-      console.log('[Ban Check] Skipping check because myUserId or artistId is missing.');
     }
-  }, [myUserId, artistId, navigate]);
+  }, [myUserId, artistId]);
 
-  // ===== 유틸 =====
+  /* =========================
+     핸들러
+     ========================= */
   const formatTime = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -670,11 +785,9 @@ export default function Merge() {
     return `${ampm} ${formattedHours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  // ===== 채팅 입력 =====
   const handleChatInput = (e) => setChatInput(e.target.value);
 
   const handleChatKeyDown = (e) => {
-    // IME(한글) 조합 중이면 엔터 무시 (크롬 마지막 글자 중복 방지)
     if (e.key === 'Enter') {
       if (composingRef.current || e.nativeEvent.isComposing) return;
       handleChatSend();
@@ -689,148 +802,16 @@ export default function Merge() {
       toast.error('채팅 서버와 연결되지 않았습니다.');
       return;
     }
-
-    // 서버가 토큰으로 사용자 식별 → 내용만 보냄
-    const payload = { content: text };
     stompRef.current.publish({
       destination: APP_SEND(artistId),
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ content: text }),
     });
-
     setChatInput('');
   };
 
-  // ===== 공통 스타일(프로모션/상품 섹션 통일) =====
-  const styles = {
-    section: {
-      background: '#fff',
-      borderRadius: 12,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-      padding: 20,
-      marginTop: 30
-    },
-    title: {
-      fontSize: 20,
-      fontWeight: 800,
-      color: '#222',
-      margin: 0,
-      paddingBottom: 12,
-      borderBottom: '2px solid #eee',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-    },
-    grid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-      gap: 18,
-      paddingTop: 16
-    },
-    card: {
-      border: '1px solid #eee',
-      borderRadius: 12,
-      background: 'linear-gradient(180deg, #fafafa 0%, #fff 100%)',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-    },
-    cardHover: {
-      transform: 'translateY(-4px)',
-      boxShadow: '0 6px 16px rgba(0,0,0,0.10)',
-    },
-    imgWrap: {
-      width: '100%',
-      height: 180,
-      background: '#f2f2f2',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    },
-    img: {
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover'
-    },
-    body: {
-      padding: 14,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8
-    },
-    name: {
-      fontSize: 16,
-      fontWeight: 700,
-      color: '#222',
-      lineHeight: 1.35
-    },
-    desc: {
-      fontSize: 13,
-      color: '#666',
-      lineHeight: 1.5,
-      height: 38,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis'
-    },
-    metaRow: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginTop: 4
-    },
-    price: {
-      fontSize: 16,
-      fontWeight: 800,
-      color: '#111'
-    },
-    badge: {
-      fontSize: 12,
-      padding: '3px 8px',
-      borderRadius: 999,
-      background: '#eef2ff',
-      color: '#4f46e5',
-      fontWeight: 700
-    },
-    actions: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 8,
-      padding: '0 14px 14px 14px'
-    },
-    btnOutline: {
-      border: '1px solid #734ADE',
-      background: 'transparent',
-      color: '#734ADE',
-      borderRadius: 10,
-      fontWeight: 700,
-      padding: '10px 12px',
-      cursor: 'pointer'
-    },
-    btnFilled: {
-      border: 'none',
-      background: '#734ADE',
-      color: '#fff',
-      borderRadius: 10,
-      fontWeight: 800,
-      padding: '10px 12px',
-      cursor: 'pointer'
-    },
-    // 프로모션 전용(폭이 넓은 카드)
-    promoGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-      gap: 18,
-      paddingTop: 16
-    },
-    promoImgWrap: {
-      width: '100%',
-      height: 220,
-      background: '#f2f2ff'
-    }
-  };
-
-  // ===== 디자인 그대로 렌더 =====
+  /* =========================
+     Render
+     ========================= */
   if (isBanned) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f8f9fa' }}>
@@ -838,15 +819,7 @@ export default function Merge() {
         <p style={{ fontSize: '1.2rem', color: '#6c757d', marginBottom: '2rem' }}>이 라이브에 대한 접근 권한이 없습니다.</p>
         <button
           onClick={() => navigate('/main')}
-          style={{
-            padding: '10px 20px',
-            fontSize: '1rem',
-            color: '#fff',
-            backgroundColor: '#007bff',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
+          style={{ padding: '10px 20px', fontSize: '1rem', color: '#fff', backgroundColor: '#007bff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
         >
           메인으로 돌아가기
         </button>
@@ -854,8 +827,35 @@ export default function Merge() {
     );
   }
 
+  const styles = {
+    section: { background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: 20, marginTop: 30 },
+    title: { fontSize: 20, fontWeight: 800, color: '#222', margin: 0, paddingBottom: 12, borderBottom: '2px solid #eee', display: 'flex', alignItems: 'center', gap: 8 },
+    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 18, paddingTop: 16 },
+    card: { border: '1px solid #eee', borderRadius: 12, background: 'linear-gradient(180deg, #fafafa 0%, #fff 100%)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'transform 0.18s ease, box-shadow 0.18s ease' },
+    cardHover: { transform: 'translateY(-4px)', boxShadow: '0 6px 16px rgba(0,0,0,0.10)' },
+    imgWrap: { width: '100%', height: 180, background: '#f2f2f2', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    img: { width: '100%', height: '100%', objectFit: 'cover' },
+    body: { padding: 14, display: 'flex', flexDirection: 'column', gap: 8 },
+    name: { fontSize: 16, fontWeight: 700, color: '#222', lineHeight: 1.35 },
+    desc: { fontSize: 13, color: '#666', lineHeight: 1.5, height: 38, overflow: 'hidden', textOverflow: 'ellipsis' },
+    metaRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+    price: { fontSize: 16, fontWeight: 800, color: '#111' },
+    badge: { fontSize: 12, padding: '3px 8px', borderRadius: 999, background: '#eef2ff', color: '#4f46e5', fontWeight: 700 },
+    actions: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '0 14px 14px 14px' },
+    btnOutline: { border: '1px solid #734ADE', background: 'transparent', color: '#734ADE', borderRadius: 10, fontWeight: 700, padding: '10px 12px', cursor: 'pointer' },
+    btnFilled: { border: 'none', background: '#734ADE', color: '#fff', borderRadius: 10, fontWeight: 800, padding: '10px 12px', cursor: 'pointer' },
+    promoGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 18, paddingTop: 16 },
+    promoImgWrap: { width: '100%', height: 220, background: '#f2f2ff' },
+    vodRow: { marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    btnBase: { border: 'none', borderRadius: 10, fontWeight: 800, padding: '10px 16px', cursor: 'pointer', transition: 'transform 0.12s ease, box-shadow 0.12s ease', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
+    btnPrimary: { background: '#734ADE', color: '#fff' },
+    btnGhost: { background: '#fff', color: '#734ADE', border: '1px solid #734ADE' },
+    btnHover: { transform: 'translateY(-1px)', boxShadow: '0 6px 16px rgba(0,0,0,0.10)' },
+  };
+
   return (
     <div className="live-page-container">
+      {/* 헤더 */}
       <div className="live-page-header">
         <h2 className="live-page-artist">
           {streamInfo?.artistName || '아티스트'} <span style={{ color: '#7c4dff' }}>LIVE</span>
@@ -863,53 +863,56 @@ export default function Merge() {
         <p className="live-page-desc">{streamInfo?.title || '방송 정보 로딩 중...'}</p>
       </div>
 
+      {/* 영상 + 채팅 */}
       <div className="live-page-stream-section">
         <div className="live-page-video-wrapper" style={{ position: 'relative' }}>
-          <div className="viewer-count-badge">👀 {viewerCount}명 접속 중</div>
+          {showViewerBadge && (
+            <div className="viewer-count-badge">👀 {viewerCount}명 접속 중</div>
+          )}
+
           <video
             ref={remoteVideoRef}
             autoPlay={streamStatus !== 'vod'}
             muted={streamStatus !== 'vod'}
-            controls={streamStatus === 'vod'}
+            controls={streamStatus === 'vod' ? false : undefined}
             playsInline
             className="live-page-video"
-            onResize={(e) => console.log('[Video] resize', e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
-            onLoadedMetadata={(e) => {
-              console.log('[Video] loadedmetadata, readyState=', e.currentTarget.readyState);
-              e.currentTarget.play?.().catch(() => { });
-            }}
-            onLoadedData={(e) => {
-              console.log('[Video] loadeddata');
-              e.currentTarget.play?.().catch(() => { });
-            }}
-            onCanPlay={(e) => {
-              console.log('[Video] canplay');
-              e.currentTarget.play?.().catch(() => { });
-            }}
+            onResize={VERBOSE && VIDEO_DEBUG ? (e) => LOG.info('VIDEO resize', { w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight }) : undefined}
+            onLoadedMetadata={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
+            onLoadedData={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
+            onCanPlay={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
+            onPlay={() => setIsVodPlaying(true)}
+            onPause={() => setIsVodPlaying(false)}
             onClick={(e) => {
-              // 라이브 자동재생 실패 시 사용자가 클릭하면 재생
-              const v = e.currentTarget;
               if (streamStatus !== 'vod') {
+                const v = e.currentTarget;
                 v.muted = true;
+                v.play?.().catch(() => { });
               }
-              v.play?.().catch(err => console.error('사용자 클릭 재생 실패:', err));
             }}
-            style={{
-              cursor: 'pointer',
-              width: '100%',
-              minHeight: 320,
-              background: '#000',
-              objectFit: 'cover',
-              borderRadius: 8
-            }}
+            style={{ cursor: 'pointer', width: '100%', minHeight: 320, background: '#000', objectFit: 'cover', borderRadius: 8 }}
           />
 
-          {!isStreamAvailable && streamStatus === 'waiting' && (
+          {streamStatus === 'vod' && (
+            <div style={{ ...styles.vodRow, marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }}>
+              <button
+                onClick={isVodPlaying ? handleVodPause : handleVodPlay}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = styles.btnHover.transform; e.currentTarget.style.boxShadow = styles.btnHover.boxShadow; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+                style={{ ...styles.btnBase, ...(isVodPlaying ? styles.btnGhost : styles.btnPrimary) }}
+              >
+                {isVodPlaying ? '⏸ 일시정지' : '▶ 재생'}
+              </button>
+            </div>
+          )}
+
+          {!isStreamAvailable && streamStatus === 'waiting' && !isVodMode && !serverEnded && (
             <p className="live-page-waiting">방송 시작을 기다리는 중...</p>
           )}
-          {!isStreamAvailable && streamStatus === 'ended' && (
+          {serverEnded && !isVodMode && (
             <p className="live-page-waiting">방송이 종료되었습니다.</p>
           )}
+
           {streamStatus === 'streaming' && (
             <>
               <SubtitleDisplay subtitle={subtitle} selectedLang={selectedLang} />
@@ -925,66 +928,37 @@ export default function Merge() {
           )}
         </div>
 
+        {/* 채팅 */}
         <div className="live-page-chat-section" style={{ height: '100%' }}>
           <div className="live-page-chat-title">실시간 채팅</div>
           <div className="live-page-chat-messages" ref={chatMessagesRef}>
             {chatList.map((msg) => {
               const isMine = myUserId && msg.senderId === myUserId && msg.type !== 'admin';
-
-              // 서버 닉네임 우선 사용
               const name =
                 msg.type === 'admin'
                   ? '시스템'
                   : isMine
                     ? (msg.nickname || sender)
                     : (msg.nickname || '익명');
-
               const time = formatTime(msg.createdAt);
 
               return (
-                <div
-                  key={msg.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: isMine ? 'flex-end' : 'flex-start',
-                    margin: '5px 0'
-                  }}
-                >
+                <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', margin: '5px 0' }}>
                   {isMine && (
-                    <span
-                      style={{
-                        alignSelf: 'flex-end',
-                        fontSize: '0.75rem',
-                        color: '#999',
-                        marginRight: 8
-                      }}
-                    >
+                    <span style={{ alignSelf: 'flex-end', fontSize: '0.75rem', color: '#999', marginRight: 8 }}>
                       {time}
                     </span>
                   )}
 
-                  <div
-                    className={msg.type === 'admin' ? 'live-page-chat-admin' : 'live-page-chat-user'}
-                    style={{ maxWidth: '70%' }}
-                  >
-                    <span
-                      className="live-page-chat-sender"
-                      style={{ color: msg.type === 'admin' ? '#3b4fff' : '#222', fontWeight: 600 }}
-                    >
+                  <div className={msg.type === 'admin' ? 'live-page-chat-admin' : 'live-page-chat-user'} style={{ maxWidth: '70%' }}>
+                    <span className="live-page-chat-sender" style={{ color: msg.type === 'admin' ? '#3b4fff' : '#222', fontWeight: 600 }}>
                       {name}:
                     </span>{' '}
                     <span className="live-page-chat-text">{msg.text}</span>
                   </div>
 
                   {!isMine && (
-                    <span
-                      style={{
-                        alignSelf: 'flex-end',
-                        fontSize: '0.75rem',
-                        color: '#999',
-                        marginLeft: 8
-                      }}
-                    >
+                    <span style={{ alignSelf: 'flex-end', fontSize: '0.75rem', color: '#999', marginLeft: 8 }}>
                       {time}
                     </span>
                   )}
@@ -997,11 +971,11 @@ export default function Merge() {
             <input
               type="text"
               className="live-page-chat-input"
-              placeholder={isMuted ? `${muteSecondsLeft}초 동안 채팅이 금지되었습니다.` : "메시지 보내기.."}
+              placeholder={isMuted ? `${muteSecondsLeft}초 동안 채팅이 금지되었습니다.` : '메시지 보내기..'}
               value={chatInput}
               onChange={handleChatInput}
-              onCompositionStart={() => { composingRef.current = true; }} // IME 시작
-              onCompositionEnd={() => { composingRef.current = false; }}  // IME 종료
+              onCompositionStart={() => { composingRef.current = true; }}
+              onCompositionEnd={() => { composingRef.current = false; }}
               onKeyDown={handleChatKeyDown}
               disabled={isMuted}
             />
@@ -1009,36 +983,24 @@ export default function Merge() {
         </div>
       </div>
 
-      {/* ===== 프로모션 & 상품: 통일된 디자인 ===== */}
+      {/* 프로모션 */}
       <div style={styles.section}>
         <h3 style={styles.title}>🎁 프로모션 상품</h3>
         <div style={styles.promoGrid}>
           {promotion ? (
             <div
               style={styles.card}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = styles.cardHover.transform;
-                e.currentTarget.style.boxShadow = styles.cardHover.boxShadow;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = '';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = styles.cardHover.transform; e.currentTarget.style.boxShadow = styles.cardHover.boxShadow; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
             >
               <div style={{ ...styles.imgWrap, ...styles.promoImgWrap }}>
-                <img
-                  src={promotion.img ? `${import.meta.env.VITE_API_URL}${promotion.img}` : '/assets/img/placeholder/240.png'}
-                  alt={promotion.name}
-                  style={styles.img}
-                />
+                <img src={promotion.img ? toGatewayUrl(promotion.img) : '/assets/img/placeholder/240.png'} alt={promotion.name} style={styles.img} />
               </div>
               <div style={styles.body}>
                 <div style={styles.name}>{promotion.name}</div>
                 <div style={styles.desc}>{promotion.description || '등록된 설명이 없습니다.'}</div>
                 <div style={styles.metaRow}>
-                  <span style={styles.badge}>
-                    재고 {promotion.stockQty ?? 0}개
-                  </span>
+                  <span style={styles.badge}>재고 {promotion.stockQty ?? 0}개</span>
                   {promotion.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
                 </div>
                 {promotion.coupon && (
@@ -1061,6 +1023,7 @@ export default function Merge() {
         </div>
       </div>
 
+      {/* 라이브 상품 목록 */}
       <div style={styles.section}>
         <h3 style={styles.title}>🛒 라이브 상품 목록</h3>
         <div className="live-page-product-list" style={styles.grid}>
@@ -1070,29 +1033,16 @@ export default function Merge() {
                 key={p.id}
                 className="live-page-product-card live-page-product-card-wide"
                 style={styles.card}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = styles.cardHover.transform;
-                  e.currentTarget.style.boxShadow = styles.cardHover.boxShadow;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = '';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
-                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = styles.cardHover.transform; e.currentTarget.style.boxShadow = styles.cardHover.boxShadow; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
               >
                 <div style={styles.imgWrap}>
-                  <img
-                    src={p.img ? `${import.meta.env.VITE_API_URL}${p.img}` : '/assets/img/placeholder/240.png'}
-                    alt={p.name}
-                    className="live-page-product-img"
-                    style={styles.img}
-                  />
+                  <img src={p.img ? toGatewayUrl(p.img) : '/assets/img/placeholder/240.png'} alt={p.name} className="live-page-product-img" style={styles.img} />
                 </div>
 
                 <div className="live-page-product-info" style={styles.body}>
                   <div className="live-page-product-name" style={styles.name}>{p.name}</div>
-                  {p.description && (
-                    <div style={styles.desc}>{p.description}</div>
-                  )}
+                  {p.description && <div style={styles.desc}>{p.description}</div>}
                   <div style={styles.metaRow}>
                     <span style={styles.badge}>재고 {p.stockQty ?? 0}개</span>
                     {p.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
@@ -1100,9 +1050,7 @@ export default function Merge() {
                 </div>
 
                 <div style={{ ...styles.metaRow, padding: '0 14px 10px 14px' }}>
-                  <span className="live-page-product-price" style={styles.price}>
-                    ₩{Number(p.price || 0).toLocaleString()}
-                  </span>
+                  <span className="live-page-product-price" style={styles.price}>₩{Number(p.price || 0).toLocaleString()}</span>
                 </div>
 
                 <div className="live-page-product-buttons-col" style={styles.actions}>

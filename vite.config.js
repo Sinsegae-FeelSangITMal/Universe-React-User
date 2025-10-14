@@ -1,39 +1,53 @@
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
-
+// vite.config.js (핵심만)
 export default ({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '');
+  const mediasoupTarget =
+    (env.VITE_MEDIASOUP_HOST || '').toLowerCase() === 'same-origin'
+      ? env.VITE_API_URL
+      : env.VITE_MEDIASOUP_HOST;
+
   return defineConfig({
     plugins: [react()],
     server: {
       port: 4444,
       open: true,
       proxy: {
-        // --- 일반 API (7777)
-        '/api': { target: env.VITE_API_URL, changeOrigin: true },
-        '/images': { target: env.VITE_API_URL, changeOrigin: true },
+        '/api/live/subtitle': {
+          target: env.VITE_LIVE_URL,
+          changeOrigin: true,
+          // (선택) 백엔드가 정확한 Origin을 요구할 때:
+          // headers: { Origin: 'http://localhost:4444' },
+          proxyTimeout: 120000,  // ← HTTP 타임아웃 업
+          timeout: 120000,
+        },
+        '/api': { target: env.VITE_API_URL, changeOrigin: true, proxyTimeout: 120000, timeout: 120000 },
+        '/images': { target: env.VITE_API_URL, changeOrigin: true, proxyTimeout: 120000, timeout: 120000 },
 
-        // --- 채팅 서버 (8888)
-        '/ws': { target: env.VITE_CHAT_URL, changeOrigin: true, ws: true }, // Chat 서버
-        '/chatapi': { target: env.VITE_CHAT_URL, changeOrigin: true }, // Chat 서버 API
+        '/ws': { target: env.VITE_CHAT_URL, changeOrigin: true, ws: true, secure: false, proxyTimeout: 120000, timeout: 120000 },
+        '/chatapi': { target: env.VITE_CHAT_URL, changeOrigin: true, proxyTimeout: 120000, timeout: 120000 },
 
-        // 🔹 자막 WebSocket (Spring Live 서비스, 8080)
-        // '/ws-subtitle'로 시작하는 모든 요청을 target으로 전달
+        // ★ 자막 WS (WS 업그레이드 + 타임아웃 늘리기)
         '/ws-subtitle': {
           target: env.VITE_LIVE_URL,
           changeOrigin: true,
-          ws: true,
           secure: false,
+          proxyTimeout: 120000, // ← 중요
+          timeout: 120000,
+          // headers: { Origin: 'http://localhost:4444' }, // 필요시
         },
 
-        // --- mediasoup (4000)
+        // mediasoup
         '/socket.io': {
-          target: env.VITE_MEDIASOUP_HOST,
+          target: mediasoupTarget,
           changeOrigin: true,
           ws: true,
+          secure: false,
+          proxyTimeout: 120000,
+          timeout: 120000,
         },
+
+        '/recording': { target: env.VITE_API_URL, changeOrigin: true, proxyTimeout: 120000, timeout: 120000 },
+        '/Recording': { target: env.VITE_API_URL, changeOrigin: true, proxyTimeout: 120000, timeout: 120000 },
       },
     },
     define: { global: 'window' },
