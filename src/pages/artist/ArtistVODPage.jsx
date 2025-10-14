@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { publicApi } from "../../api/api";
+import { api, publicApi } from "../../api/api";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAuthStore } from "../../store/auth";
 
 
 // 아티스트 스트리밍 다시보기 페이지
 export default function ArtistVODPage() {
 
     const navigate = useNavigate();
-
+    const { user } = useAuthStore();
+    
     const { artistId } = useParams();
     const [artist, setArtist] = useState({});
     const [vods, setVods] = useState([]);
@@ -24,22 +26,17 @@ export default function ArtistVODPage() {
             const res = await publicApi.get(`/ent/streams/artists/${artistId}/streams/ended`);
             setVods(res.data);
         }
+
+        async function fetchMembership(){
+            const res = await api.get(`/memberships/${user.userId}`);
+            setMembership(res.data.data);
+        }
+    
         fetchArtist();
         fetchVods();
+        fetchMembership();
     }, [artistId]);
 
-      // 유저의 멤버십 정보 불러오기
-      useEffect(() => {
-        (async () => {
-          try {
-            const res = await getMembership(user.userId);
-            setMembership(res.data.data);
-            console.log(res.data.data);
-          } catch (e) {
-            console.error("멤버십 정보 불러오기 실패:", e);
-          }
-        })();
-      }, []);
 
      const handleProductClick = (live) => {
     // 팬전용 라이브인지 검사
