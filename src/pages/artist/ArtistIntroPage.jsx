@@ -163,7 +163,9 @@ export default function ArtistIntroPage() {
             border: "2.5px solid black",
 
             cursor: "pointer"
-          }}>
+          }}
+            onClick={()=> navigate(`/shop/products/${artist.id}`)}
+          >
             스토어 바로가기 
           </button>
         </div>
@@ -428,7 +430,7 @@ export default function ArtistIntroPage() {
           <a href={artist.tiktok} target="_blank" rel="noopener noreferrer">
             <FaTiktok size={28} color="#000000ff" />
           </a>
-        </div>
+        </div>ㅇ
       </div>
     </div>
   );
