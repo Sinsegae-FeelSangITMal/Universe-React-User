@@ -12,6 +12,7 @@ import { getStream } from '../../utils/StreamApi';
 import { getStreamProductsByStream } from '../../utils/StreamProductApi';
 import { getPromotion } from '../../utils/PromotionApi';
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
+import { getCart, addCart } from '../../utils/CartApi';
 
 /* =========================
    Quiet Logger (env-toggle + throttling)
@@ -113,6 +114,8 @@ export default function Merge() {
   const [promotion, setPromotion] = useState(null);
   const [productDetails, setProductDetails] = useState([]);
 
+  const [cart, setCart] = useState(null);
+
   /* 최신 status ref */
   const statusRef = useRef(streamStatus);
   useEffect(() => { statusRef.current = streamStatus; }, [streamStatus]);
@@ -122,6 +125,24 @@ export default function Merge() {
 
   const myUserId = user?.userId || 0;
   const sender = user?.nickname || '나';
+
+
+  // 장바구니 담기
+  const handleAddCart = async (id) => {
+    try {
+      const res = await addCart(myUserId, id, 1);
+      if (res.data.success) {
+        toast.success("장바구니에 담았습니다!");
+        // 장바구니 상태 최신화
+        getCart(myUserId).then(res => setCart(res.data?.data || []));
+      } else {
+        toast.error(res.data.message || "장바구니 담기 실패");
+      }
+    } catch (e) {
+      console.error("장바구니 추가 실패:", e.response);
+      toast.error(e.response?.data?.message || "오류가 발생했습니다.");
+    }
+  };
 
   /* =========================
      VOD 전환 & 재생 컨트롤
@@ -1041,7 +1062,6 @@ export default function Merge() {
                 <div style={styles.name}>{promotion.name}</div>
                 <div style={styles.desc}>{promotion.description || '등록된 설명이 없습니다.'}</div>
                 <div style={styles.metaRow}>
-                  <span style={styles.badge}>재고 {promotion.stockQty ?? 0}개</span>
                   {promotion.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
                 </div>
                 {promotion.coupon && (
@@ -1053,7 +1073,10 @@ export default function Merge() {
               </div>
               <div style={styles.actions}>
                 <button style={styles.btnOutline}>자세히 보기</button>
-                <button style={styles.btnFilled}>구매하기</button>
+                <button
+                  style={styles.btnFilled}
+                  onClick={() => handleAddCart(promotion.id)}
+                >장바구니</button>
               </div>
             </div>
           ) : (
@@ -1085,7 +1108,6 @@ export default function Merge() {
                   <div className="live-page-product-name" style={styles.name}>{p.name}</div>
                   {p.description && <div style={styles.desc}>{p.description}</div>}
                   <div style={styles.metaRow}>
-                    <span style={styles.badge}>재고 {p.stockQty ?? 0}개</span>
                     {p.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
                   </div>
                 </div>
@@ -1095,7 +1117,11 @@ export default function Merge() {
                 </div>
 
                 <div className="live-page-product-buttons-col" style={styles.actions}>
-                  <button className="live-page-btn-cart live-page-btn-outline" style={styles.btnOutline}>장바구니</button>
+                  <button
+                    className="live-page-btn-cart live-page-btn-outline"
+                    style={styles.btnOutline}
+                    onClick={() => handleAddCart(p.id)}
+                  >장바구니</button>
                   <button className="live-page-btn-buy live-page-btn-filled" style={styles.btnFilled}>주문하기</button>
                 </div>
               </div>

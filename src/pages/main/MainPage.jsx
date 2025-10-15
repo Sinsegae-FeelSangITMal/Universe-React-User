@@ -86,20 +86,10 @@ export default function Main() {
                 <div className="row justify-content-center">
                   <div className="col-xl-8 col-lg-9">
                     <div className="hero__caption">
-                      {/* ✅ 한 개의 h1만 사용 + 줄바꿈은 block span */}
-                      <h1
-                        style={{
-                          marginBottom: 50,
-                          textShadow:
-                            "0 0 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 9px rgba(0, 0, 0, 0.7)",
-                        }}
-                      >
-                        <span style={{ display: "block" }}>25.11.01</span>
-                        <span style={{ display: "block" }}>
-                          BTS Special Live
-                        </span>
+                      <h1 style={{marginBottom: 50, textShadow: "0 0 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 9px rgba(0, 0, 0, 0.7)"}}>
+                        25.11.01<br/>
+                        BTS Special Live
                       </h1>
-
                       <Link to="/shop/products" className="btn">
                         View Special MD
                       </Link>
@@ -118,24 +108,10 @@ export default function Main() {
                 <div className="row justify-content-center">
                   <div className="col-xl-8 col-lg-9">
                     <div className="hero__caption">
-                      {/* ✅ 중첩 h1 제거: 상위는 h1 대신 h2 사용 */}
-                      <h2 style={{ marginBottom: 12 }}>
-                        Universe X Netflix
-                      </h2>
-                      <p
-                        style={{
-                          marginBottom: 28,
-                          fontSize: 36,
-                          fontWeight: 800,
-                          lineHeight: 1.15,
-                          color: "#430759ff",
-                          textShadow:
-                            "0 0 3px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.9), 0 0 9px rgba(255, 255, 255, 0.9)",
-                        }}
-                      >
-                        KPop Demon Hunters
-                      </p>
-
+                      <h1 style={{marginBottom: 50}}>
+                        Universe X Netflix<br/>
+                        <h1 style={{color: "#430759ff", textShadow: "0 0 3px rgba(255, 255, 255, 0.9), 0 0 6px rgba(255, 255, 255, 0.9), 0 0 9px rgba(255, 255, 255, 0.9)"}}>KPop Demon Hunters</h1>
+                      </h1>
                       <Link to="/shop/products" className="btn">
                         View Products
                       </Link>

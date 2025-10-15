@@ -163,7 +163,9 @@ export default function ArtistIntroPage() {
             border: "2.5px solid black",
 
             cursor: "pointer"
-          }}>
+          }}
+            onClick={()=> navigate(`/shop/products/${artist.id}`)}
+          >
             스토어 바로가기 
           </button>
         </div>
