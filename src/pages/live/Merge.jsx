@@ -1035,7 +1035,7 @@ export default function Merge() {
                 <button style={styles.btnOutline}>자세히 보기</button>
                 <button
                   style={styles.btnFilled}
-                  onClick={handleAddCart(promotion.id)}
+                  onClick={() => handleAddCart(promotion.id)}
                 >장바구니</button>
               </div>
             </div>
@@ -1080,7 +1080,7 @@ export default function Merge() {
                   <button
                     className="live-page-btn-cart live-page-btn-outline"
                     style={styles.btnOutline}
-                    onClick={handleAddCart(p.id)}
+                    onClick={() => handleAddCart(p.id)}
                   >장바구니</button>
                   <button className="live-page-btn-buy live-page-btn-filled" style={styles.btnFilled}>주문하기</button>
                 </div>
