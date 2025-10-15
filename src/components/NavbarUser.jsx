@@ -1,11 +1,14 @@
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { useAuthStore } from "../store/auth"
 import { publicApi } from "../api/api";
+import { useState } from "react";
 
 export default function NavbarUser(){
     const navigate = useNavigate();
     const logoutAction = useAuthStore((state) => state.logout);
+    const user = useAuthStore((state) => state.user);
+    const [open, setOpen] = useState(false);
 
     const logout = async () => {
         try{
@@ -51,34 +54,110 @@ export default function NavbarUser(){
                                 </nav>
                             </div>   
                         </div>
-                        <div className="header-right1 d-flex align-items-center">
-                    
-                            {/* <!-- Search Box --> */}
-                            <div className="search d-none d-md-block">
-                                <ul className="d-flex align-items-center">
-                                    <li>
-                                        <a href="/cart">
-                                            <div className="card-stor">
-                                                <img src="/assets/img/gallery/card.svg"/>
-                                            </div>
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a href="/membership">
-                                            <div className="card-stor yellow">
-                                                <span> Membership</span>
-                                            </div>
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
 
-                            <div className="card-stor mint">MyPage</div>
-                            <div className="card-stor purple" onClick={logout}>Logout</div>
-                        </div>
-                        {/* <!-- Mobile Menu --> */}
-                        <div className="col-12">
-                            <div className="mobile_menu d-block d-lg-none"></div>
+
+                        <div
+                            className="user-dropdown"
+                            style={{ position: "relative", display: "inline-block" }}
+                            >
+                            <button
+                                className="user-btn"
+                                style={{
+                                backgroundColor: "#ac5affff",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: "20px",
+                                padding: "8px 14px",
+                                cursor: "pointer",
+                                fontWeight: 500,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                }}
+                                onClick={() => setOpen(!open)}
+                                
+                            >
+                                {user.nickname} 님
+                                <span style={{ fontSize: "12px", marginLeft: "4px" }}>▼</span>
+                            </button>
+
+                            {/* ▼ 드롭다운 메뉴 */}
+                            <ul
+                                className="user-menu"
+                                style={{
+                                position: "absolute",
+                                right: 0,
+                                top: "40px",
+                                listStyle: "none",
+                                background: "white",
+                                borderRadius: "10px",
+                                boxShadow: "0 3px 8px rgba(0,0,0,0.15)",
+                                padding: "6px 0",
+                                width: "140px",
+                                margin: 0,
+                                display: open ? "block" : "none",
+                                zIndex: 10,
+                                    
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.display = "block")}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.display = "none"
+                                    setOpen(false);
+                                }}
+                            >
+                                <li
+                                style={{
+                                    padding: "8px 14px",
+                                    cursor: "pointer",
+                                    transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                                onClick={() => {navigate("/cart")}}
+                                >
+                                    Cart
+                                </li>
+
+                                <li
+                                style={{
+                                    padding: "8px 14px",
+                                    cursor: "pointer",
+                                    transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                                onClick={()=> navigate("/membership")}
+                                >
+                                    Membership
+                                </li>
+
+
+                                <li
+                                style={{
+                                    padding: "8px 14px",
+                                    cursor: "pointer",
+                                    transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                                onClick={()=>navigate("/order/list")}
+                                >
+                                    Order
+                                </li>
+
+                                <li
+                                style={{
+                                    padding: "8px 14px",
+                                    cursor: "pointer",
+                                    transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                                onClick={logout}
+                                >
+                                    Logout
+                                </li>
+                            </ul>
                         </div>
                     </div>
                 </div>

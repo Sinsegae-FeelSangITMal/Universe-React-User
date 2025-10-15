@@ -14,7 +14,7 @@ export default function OrderSubmitPage() {
 
     // 주문자, 배송지, 동의 상태 관리
     const [orderer, setOrderer] = useState({
-        name: user.nickname,
+        name: "",
         email: user.email
     });
     const [receiver, setReceiver] = useState({
