@@ -126,6 +126,22 @@ export default function Merge() {
   const myUserId = user?.userId || 0;
   const sender = user?.nickname || '나';
 
+  // 유저 이름 색 팔레트 (5개)
+  const NAME_COLORS = ['#1f77b4', '#2ca02c', '#d62728', '#ff7f0e', '#9467bd'];
+  // 유저별 → 색상 매핑을 보존(렌더 간 유지)
+  const nameColorMapRef = useRef(new Map());
+  const getNameColor = (msg) => {
+    if (msg.role === 'PARTNER') return '#3b4fff';         // PARTNER는 고정 보라
+    if (msg.type === 'admin') return '#3b4fff';           // 시스템은 파란색 유지
+
+    const key = msg.senderId || msg.nickname || '__anon';
+    if (!nameColorMapRef.current.has(key)) {
+      const idx = nameColorMapRef.current.size % NAME_COLORS.length; // 5개 돌려가며 배정
+      nameColorMapRef.current.set(key, NAME_COLORS[idx]);
+    }
+    return nameColorMapRef.current.get(key);
+  };
+
 
   // 장바구니 담기
   const handleAddCart = async (id) => {
@@ -432,6 +448,7 @@ export default function Merge() {
         client.subscribe(TOPIC_SUBSCRIBE(liveId), (f) => {
           try {
             const body = JSON.parse(f.body);
+
             setChatList((prev) => ([
               ...prev,
               {
@@ -440,6 +457,7 @@ export default function Merge() {
                 nickname: body.nickname ?? '익명',
                 text: body.content ?? '',
                 type: body.contentType === 'SYSTEM' ? 'admin' : 'user',
+                role: body.role || 'USER',
                 createdAt: body.createdAt,
               },
             ]));
@@ -795,6 +813,7 @@ export default function Merge() {
             nickname: m.nickname ?? '익명',
             text: m.content ?? '',
             type: m.contentType === 'SYSTEM' ? 'admin' : 'user',
+            role: m.role ?? 'USER',
             createdAt: m.createdAt,
           })));
           LOG.info('CHAT history✔', { count: history.length });
@@ -995,6 +1014,7 @@ export default function Merge() {
           <div className="live-page-chat-title">실시간 채팅</div>
           <div className="live-page-chat-messages" ref={chatMessagesRef}>
             {chatList.map((msg) => {
+              console.log(msg);
               const isMine = myUserId && msg.senderId === myUserId && msg.type !== 'admin';
               const name =
                 msg.type === 'admin'
@@ -1003,29 +1023,53 @@ export default function Merge() {
                     ? (msg.nickname || sender)
                     : (msg.nickname || '익명');
               const time = formatTime(msg.createdAt);
+              const displayName = msg.role === 'PARTNER' ? 'HIVE' : name;
 
               return (
-                <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', margin: '5px 0' }}>
-                  {isMine && (
-                    <span style={{ alignSelf: 'flex-end', fontSize: '0.75rem', color: '#999', marginRight: 8 }}>
-                      {time}
-                    </span>
-                  )}
-
-                  <div className={msg.type === 'admin' ? 'live-page-chat-admin' : 'live-page-chat-user'} style={{ maxWidth: '70%' }}>
-                    <span className="live-page-chat-sender" style={{ color: msg.type === 'admin' ? '#3b4fff' : '#222', fontWeight: 600 }}>
-                      {name}:
+                <div
+                  key={msg.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-start',
+                    margin: '5px 0'
+                  }}
+                >
+                  <div
+                    className={msg.type === 'admin' ? 'live-page-chat-admin' : 'live-page-chat-user'}
+                    style={{ maxWidth: '70%' }}
+                  >
+                    <span
+                      className="live-page-chat-sender"
+                      style={{
+                        color: getNameColor(msg),
+                        fontWeight: msg.role === 'PARTNER' ? 1000 : 600, // 🔹 PARTNER면 더 굵게
+                      }}
+                    >
+                      {displayName} :
                     </span>{' '}
-                    <span className="live-page-chat-text">{msg.text}</span>
-                  </div>
-
-                  {!isMine && (
-                    <span style={{ alignSelf: 'flex-end', fontSize: '0.75rem', color: '#999', marginLeft: 8 }}>
-                      {time}
+                    <span
+                      className="live-page-chat-text"
+                      style={{
+                        fontWeight: msg.role === 'PARTNER' ? 1000 : 400, // 🔹 PARTNER면 메시지도 굵게
+                      }}
+                    >
+                      {msg.text}
                     </span>
-                  )}
+                  </div>
+              
+                  {/* 시간은 항상 말풍선 오른쪽에 표기 */}
+                  <span
+                    style={{
+                      alignSelf: 'flex-end',
+                      fontSize: '0.75rem',
+                      color: '#999',
+                      marginLeft: 8
+                    }}
+                  >
+                    {time}
+                  </span>
                 </div>
-              );
+              );              
             })}
           </div>
 
