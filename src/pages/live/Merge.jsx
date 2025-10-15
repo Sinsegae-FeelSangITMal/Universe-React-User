@@ -1021,7 +1021,6 @@ export default function Merge() {
                 <div style={styles.name}>{promotion.name}</div>
                 <div style={styles.desc}>{promotion.description || '등록된 설명이 없습니다.'}</div>
                 <div style={styles.metaRow}>
-                  <span style={styles.badge}>재고 {promotion.stockQty ?? 0}개</span>
                   {promotion.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
                 </div>
                 {promotion.coupon && (

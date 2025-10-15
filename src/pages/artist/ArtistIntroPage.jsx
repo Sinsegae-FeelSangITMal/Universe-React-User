@@ -430,7 +430,7 @@ export default function ArtistIntroPage() {
           <a href={artist.tiktok} target="_blank" rel="noopener noreferrer">
             <FaTiktok size={28} color="#000000ff" />
           </a>
-        </div>ㅇ
+        </div>
       </div>
     </div>
   );
