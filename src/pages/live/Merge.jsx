@@ -107,6 +107,7 @@ export default function Merge() {
   const [subtitle, setSubtitle] = useState(null);
   const [selectedLang, setSelectedLang] = useState('ko');
   const [viewerCount, setViewerCount] = useState(0);
+  const [vodError, setVodError] = useState(false); // VOD 파일 접근 실패 시 표시
 
   const [streamInfo, setStreamInfo] = useState(null);
   const [promotion, setPromotion] = useState(null);
@@ -125,7 +126,7 @@ export default function Merge() {
   /* =========================
      VOD 전환 & 재생 컨트롤
      ========================= */
-  const setVideoToVod = (recordPath) => {
+  const setVideoToVod = async (recordPath) => {
     LOG.info('VOD▶ setVideoToVod', { recordPath });
     const videoEl = remoteVideoRef.current;
     if (!videoEl) return;
@@ -134,19 +135,49 @@ export default function Merge() {
       try { videoEl.srcObject.getTracks?.().forEach((t) => t.stop?.()); } catch { }
       videoEl.srcObject = null;
     }
+    // 기본값 세팅
     videoEl.crossOrigin = 'anonymous';
-    videoEl.src = toGatewayUrl(recordPath || '');
     videoEl.controls = false;
     videoEl.muted = false;
     videoEl.playsInline = true;
 
+    // 1) 경로 자체가 없으면 바로 오류 표시
+    const url = toGatewayUrl(recordPath || '');
+    if (!recordPath) {
+      setVodError(true);
+      setIsVodPlaying(false);
+      setIsStreamAvailable(false);
+      setStreamStatus('vod');
+      LOG.warn('VOD✖ no record path');
+      return;
+    }
+
+    // 2) 사전 HEAD 체크 (CORS 허용 시)
+    try {
+      const head = await fetch(url, { method: 'HEAD' });
+      if (!head.ok) throw new Error(`HEAD ${head.status}`);
+    } catch (e) {
+      LOG.warn('VOD✖ HEAD check failed', e);
+      // HEAD 실패해도 바로 포기하지 않고, 비디오 onerror에서 한 번 더 확인
+    }
+
+    // 3) 소스 지정 + 강제 pause (절대 자동재생 금지)
+    videoEl.src = url;
     try { videoEl.load(); } catch { }
     try { videoEl.pause(); } catch { }
-
+    setVodError(false);
     setIsVodPlaying(false);
     setIsStreamAvailable(true);
-    setStreamStatus('vod');
-    LOG.info('STATUS vod');
+    setStreamStatus('vod'); // ← 이 시점 이후로는 statusRef도 vod가 되어 자동재생 로직이 전부 무시됨
+    LOG.info('STATUS vod (source set)');
+    // 4) 로드 실패 시 에러 표시
+    const onErr = () => {
+      LOG.error('VOD✖ media error');
+      setVodError(true);
+      setIsVodPlaying(false);
+      setIsStreamAvailable(false);
+    };
+    videoEl.addEventListener('error', onErr, { once: true });
   };
 
   const handleVodPlay = async () => {
@@ -194,8 +225,10 @@ export default function Merge() {
         .forEach((name) => v.addEventListener(name, logEv));
     }
 
-    const p = v.play?.();
-    if (p && p.catch) p.catch(() => { });
+    if (statusRef.current !== 'vod') {
+      const p = v.play?.();
+      if (p && p.catch) p.catch(() => { });
+    }
 
     return () => {
       if (VERBOSE && VIDEO_DEBUG) {
@@ -210,6 +243,7 @@ export default function Merge() {
      ========================= */
   const tryPlay = (video) => {
     if (!video) return;
+    if (statusRef.current === 'vod') return; // VOD에서는 자동재생 금지
     video.muted = true;
     video.playsInline = true;
     const p = video.play?.();
@@ -235,12 +269,14 @@ export default function Merge() {
     if (video.srcObject !== ms) video.srcObject = ms;
 
     const kick = () => {
-      if (streamStatus !== 'vod') {
+      if (statusRef.current !== 'vod') {
         setIsStreamAvailable(true);
         setStreamStatus('streaming');
       }
-      const p = video.play?.();
-      if (p && p.catch) p.catch(() => { });
+      if (statusRef.current !== 'vod') {
+        const p = video.play?.();
+        if (p && p.catch) p.catch(() => { });
+      }
     };
 
     if (track.muted) {
@@ -250,7 +286,7 @@ export default function Merge() {
     }
 
     const onReady = () => {
-      if (streamStatus !== 'vod') {
+      if (statusRef.current !== 'vod') {
         setIsStreamAvailable(true);
         setStreamStatus('streaming');
       }
@@ -320,7 +356,7 @@ export default function Merge() {
         setServerEnded(raw === 'ENDED');
 
         if (raw === 'ENDED' || raw === 'END' || raw === 'COMPLETED') {
-          if (normalized.record) setVideoToVod(normalized.record);
+          if (normalized.record) await setVideoToVod(normalized.record);
           else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (no record)'); }
         } else if (raw === 'LIVE' || raw === 'WAITING') {
           setIsStreamAvailable(false);
@@ -675,7 +711,7 @@ export default function Merge() {
         setServerEnded(raw === 'ENDED');
 
         if (raw === 'ENDED') {
-          if (record) setVideoToVod(record);
+          if (record) await setVideoToVod(record);
           else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (producer closed, no record)'); }
         } else if (raw === 'LIVE' || raw === 'WAITING') {
           setIsStreamAvailable(false);
@@ -870,30 +906,35 @@ export default function Merge() {
             <div className="viewer-count-badge">👀 {viewerCount}명 접속 중</div>
           )}
 
-          <video
-            ref={remoteVideoRef}
-            autoPlay={streamStatus !== 'vod'}
-            muted={streamStatus !== 'vod'}
-            controls={streamStatus === 'vod' ? false : undefined}
-            playsInline
-            className="live-page-video"
-            onResize={VERBOSE && VIDEO_DEBUG ? (e) => LOG.info('VIDEO resize', { w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight }) : undefined}
-            onLoadedMetadata={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
-            onLoadedData={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
-            onCanPlay={(e) => { if (streamStatus !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
-            onPlay={() => setIsVodPlaying(true)}
-            onPause={() => setIsVodPlaying(false)}
-            onClick={(e) => {
-              if (streamStatus !== 'vod') {
-                const v = e.currentTarget;
-                v.muted = true;
-                v.play?.().catch(() => { });
-              }
-            }}
-            style={{ cursor: 'pointer', width: '100%', minHeight: 320, background: '#000', objectFit: 'cover', borderRadius: 8 }}
-          />
+          {streamStatus === 'vod' && vodError ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: 320, background: '#000', color: '#fff', borderRadius: 8 }}>
+              영상을 호출할 수 없습니다.
+            </div>
+          ) : (
+            <video
+              ref={remoteVideoRef}
+              autoPlay={streamStatus !== 'vod'}
+              muted={streamStatus !== 'vod'}
+              controls={streamStatus === 'vod' ? false : undefined}
+              playsInline
+              className="live-page-video"
+              onLoadedMetadata={(e) => { if (statusRef.current !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
+              onLoadedData={(e) => { if (statusRef.current !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
+              onCanPlay={(e) => { if (statusRef.current !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
+              onPlay={() => setIsVodPlaying(true)}
+              onPause={() => setIsVodPlaying(false)}
+              onClick={(e) => {
+                if (statusRef.current !== 'vod') {
+                  const v = e.currentTarget;
+                  v.muted = true;
+                  v.play?.().catch(() => { });
+                }
+              }}
+              style={{ cursor: 'pointer', width: '100%', minHeight: 320, background: '#000', objectFit: 'cover', borderRadius: 8 }}
+            />
+          )}
 
-          {streamStatus === 'vod' && (
+          {streamStatus === 'vod' && !vodError && (
             <div style={{ ...styles.vodRow, marginTop: 10, borderTop: '1px solid #eee', paddingTop: 10 }}>
               <button
                 onClick={isVodPlaying ? handleVodPause : handleVodPlay}
@@ -994,7 +1035,7 @@ export default function Merge() {
               onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
             >
               <div style={{ ...styles.imgWrap, ...styles.promoImgWrap }}>
-                <img src={promotion.img ? toGatewayUrl(promotion.img) : '/assets/img/placeholder/240.png'} alt={promotion.name} style={styles.img} />
+                <img src="/assets/img/dummyImg/bts_promotion1.jpg" alt={promotion.name} style={styles.img} />
               </div>
               <div style={styles.body}>
                 <div style={styles.name}>{promotion.name}</div>
