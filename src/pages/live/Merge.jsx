@@ -14,25 +14,6 @@ import { getPromotion } from '../../utils/PromotionApi';
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 import { getCart, addCart } from '../../utils/CartApi';
 
-const [cart, setCart] = useState(null);
-
-// 장바구니 담기
-const handleAddCart = async () => {
-  try {
-    const res = await addCart(user.userId, detail.id, qty);
-    if (res.data.success) {
-      toast.success("장바구니에 담았습니다!");
-      // 장바구니 상태 최신화
-      getCart(user.userId).then(res => setCart(res.data?.data || []));
-    } else {
-      toast.error(res.data.message || "장바구니 담기 실패");
-    }
-  } catch (e) {
-    console.error("장바구니 추가 실패:", e.response);
-    toast.error(e.response?.data?.message || "오류가 발생했습니다.");
-  }
-};
-
 /* =========================
    Quiet Logger (env-toggle + throttling)
    ========================= */
@@ -132,6 +113,8 @@ export default function Merge() {
   const [promotion, setPromotion] = useState(null);
   const [productDetails, setProductDetails] = useState([]);
 
+  const [cart, setCart] = useState(null);
+  
   /* 최신 status ref */
   const statusRef = useRef(streamStatus);
   useEffect(() => { statusRef.current = streamStatus; }, [streamStatus]);
@@ -141,6 +124,24 @@ export default function Merge() {
 
   const myUserId = user?.userId || 0;
   const sender = user?.nickname || '나';
+
+
+  // 장바구니 담기
+  const handleAddCart = async () => {
+    try {
+      const res = await addCart(user.userId, detail.id, qty);
+      if (res.data.success) {
+        toast.success("장바구니에 담았습니다!");
+        // 장바구니 상태 최신화
+        getCart(user.userId).then(res => setCart(res.data?.data || []));
+      } else {
+        toast.error(res.data.message || "장바구니 담기 실패");
+      }
+    } catch (e) {
+      console.error("장바구니 추가 실패:", e.response);
+      toast.error(e.response?.data?.message || "오류가 발생했습니다.");
+    }
+  };
 
   /* =========================
      VOD 전환 & 재생 컨트롤
