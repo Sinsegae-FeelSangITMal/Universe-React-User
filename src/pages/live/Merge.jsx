@@ -571,6 +571,9 @@ export default function Merge() {
    ========================= */
   useEffect(() => {
     if (!liveId) return;
+    // 서버가 ENDED이고 record가 있으면 VOD만 재생 → mediasoup 생략
+    if (serverEnded && streamInfo?.record) return;
+    if (streamStatus === 'vod') return;
 
     LOG.info('[Subtitle] Opening Web Socket...');
     const getAccessToken = () => useAuthStore.getState().accessToken;
@@ -1009,6 +1012,7 @@ export default function Merge() {
             </div>
           ) : (
             <video
+              key={isVodMode ? 'vod' : 'live'}
               ref={remoteVideoRef}
               autoPlay={streamStatus !== 'vod'}
               muted={streamStatus !== 'vod'}
@@ -1047,7 +1051,7 @@ export default function Merge() {
           {!isStreamAvailable && streamStatus === 'waiting' && !isVodMode && !serverEnded && (
             <p className="live-page-waiting">방송 시작을 기다리는 중...</p>
           )}
-          {serverEnded && !isVodMode && (
+          {streamStatus === 'ended' && (
             <p className="live-page-waiting">방송이 종료되었습니다.</p>
           )}
 
