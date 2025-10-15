@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/auth';
 import { getStream } from '../../utils/StreamApi';
 import { getStreamProductsByStream } from '../../utils/StreamProductApi';
 import { getPromotion } from '../../utils/PromotionApi';
+import { getProduct } from '../../utils/ProductApi';
 import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 import { getCart, addCart } from '../../utils/CartApi';
 
@@ -141,6 +142,63 @@ export default function Merge() {
     } catch (e) {
       console.error("장바구니 추가 실패:", e.response);
       toast.error(e.response?.data?.message || "오류가 발생했습니다.");
+    }
+  };
+
+  // 상대 경로 → 게이트웨이(/api)로 보정
+  const toGatewayUrl = (p) => {
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p)) return p;
+    const base = import.meta.env.VITE_API_URL || '/api';
+    return `${base}${p}`;
+  };
+
+
+  /* =========================
+     연계 상품 메인 이미지 경로 해석(즉시/지연 조회)
+     ========================= */
+  const resolveMainImagePath = async (product) => {
+    // 1) product 객체에 직접 달려온 후보
+    const direct =
+      product?.mainImageUrl ||
+      product?.mainImgUrl ||
+      product?.img ||
+      product?.imageUrl;
+    if (direct) return direct;
+
+    // 2) 내부 이미지 배열에서 MAIN 역할 찾기
+    const imgs =
+      product?.images ||
+      product?.productImages ||
+      product?.detailImages ||
+      product?.pictures ||
+      [];
+    const main =
+      imgs.find((im) =>
+        (im.role || im.piRole || im.PI_ROLE || im.type) === 'MAIN'
+      ) || imgs[0];
+    const embedded = main?.url || main?.piUrl || main?.PI_URL;
+    if (embedded) return embedded;
+
+    // 3) 최후 수단: 단건 조회로 mainImageUrl 확보
+    try {
+      const res = await getProduct(product.id);
+      const p = res?.data?.data || res?.data;
+      if (!p) return null;
+
+      const d =
+        p.mainImageUrl ||
+        (Array.isArray(p.detailImages)
+          ? (
+            p.detailImages.find((im) =>
+              (im.role || im.piRole || im.PI_ROLE || im.type) === 'MAIN'
+            )?.url || p.detailImages[0]?.url
+          )
+          : null);
+
+      return d || null;
+    } catch {
+      return null;
     }
   };
 
@@ -401,8 +459,26 @@ export default function Merge() {
         LOG.info('API▶ getStreamProductsByStream', { liveId: String(liveId) });
         const spResp = await getStreamProductsByStream(liveId);
         const spList = Array.isArray(spResp?.data?.data) ? spResp.data.data : [];
-        setProductDetails(spList.map((sp) => ({ ...(sp.product || {}) })));
-        LOG.info('API✔ getStreamProductsByStream', spList);
+        // 이미지 경로를 해석해 img 필드를 보장
+        const products = await Promise.all(
+          spList
+            .filter((sp) => !!sp.product)
+            .map(async (sp) => {
+              const p = sp.product;
+              const imgPath = await resolveMainImagePath(p);
+              return {
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                price: p.price,
+                stockQty: p.stockQty ?? p.stockQuantity ?? 0,
+                img: imgPath || null,
+              };
+            })
+        );
+        setProductDetails(products);
+        LOG.info('API✔ getStreamProductsByStream', { count: products.length });
+
       } catch (err) {
         LOG.error('API✖ getStream', err);
         setStreamInfo((prev) => prev ?? { title: '', artistName: '' });
