@@ -372,7 +372,7 @@ export default function Merge() {
       onConnect: () => {
         LOG.info('CHAT✔ connected');
 
-        client.subscribe(TOPIC_SUBSCRIBE(artistId), (f) => {
+        client.subscribe(TOPIC_SUBSCRIBE(liveId), (f) => {
           try {
             const body = JSON.parse(f.body);
             setChatList((prev) => ([
@@ -431,7 +431,7 @@ export default function Merge() {
       try { client.deactivate(); } catch { }
       stompRef.current = null;
     };
-  }, [artistId, accessToken, myUserId]);
+  }, [liveId, accessToken, myUserId]);
 
   /* =========================
    자막 STOMP (Authorization 포함)
@@ -726,10 +726,10 @@ export default function Merge() {
      최근 메시지 로드
      ========================= */
   useEffect(() => {
-    if (!artistId) return;
+    if (!liveId) return;
     const fetchRecent = async () => {
       try {
-        const res = await fetch(`${CHAT_API_BASE_URL}/rooms/${artistId}/messages`);
+        const res = await fetch(`${CHAT_API_BASE_URL}/rooms/${liveId}/messages`);
         if (res.ok) {
           const history = await res.json();
           setChatList(history.map((m) => ({
@@ -749,15 +749,15 @@ export default function Merge() {
       }
     };
     fetchRecent();
-  }, [artistId]);
+  }, [liveId]);
 
   /* =========================
      Ban 상태 체크
      ========================= */
   useEffect(() => {
-    if (myUserId && artistId) {
+    if (myUserId && liveId) {
       const checkBanStatus = async () => {
-        const url = `/chatapi/moderation/status?userId=${myUserId}&roomId=${artistId}`;
+        const url = `/chatapi/moderation/status?userId=${myUserId}&roomId=${liveId}`;
         try {
           const response = await fetch(url);
           if (!response.ok) return;
@@ -770,7 +770,7 @@ export default function Merge() {
       };
       checkBanStatus();
     }
-  }, [myUserId, artistId]);
+  }, [myUserId, liveId]);
 
   /* =========================
      핸들러
@@ -803,7 +803,7 @@ export default function Merge() {
       return;
     }
     stompRef.current.publish({
-      destination: APP_SEND(artistId),
+      destination: APP_SEND(liveId),
       body: JSON.stringify({ content: text }),
     });
     setChatInput('');
