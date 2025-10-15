@@ -114,7 +114,7 @@ export default function Merge() {
   const [productDetails, setProductDetails] = useState([]);
 
   const [cart, setCart] = useState(null);
-  
+
   /* 최신 status ref */
   const statusRef = useRef(streamStatus);
   useEffect(() => { statusRef.current = streamStatus; }, [streamStatus]);
@@ -127,13 +127,13 @@ export default function Merge() {
 
 
   // 장바구니 담기
-  const handleAddCart = async () => {
+  const handleAddCart = async (id) => {
     try {
-      const res = await addCart(user.userId, detail.id, qty);
+      const res = await addCart(myUserId, id, 1);
       if (res.data.success) {
         toast.success("장바구니에 담았습니다!");
         // 장바구니 상태 최신화
-        getCart(user.userId).then(res => setCart(res.data?.data || []));
+        getCart(myUserId).then(res => setCart(res.data?.data || []));
       } else {
         toast.error(res.data.message || "장바구니 담기 실패");
       }
@@ -1035,7 +1035,7 @@ export default function Merge() {
                 <button style={styles.btnOutline}>자세히 보기</button>
                 <button
                   style={styles.btnFilled}
-                  onClick={handleAddCart}
+                  onClick={handleAddCart(promotion.id)}
                 >장바구니</button>
               </div>
             </div>
@@ -1080,7 +1080,7 @@ export default function Merge() {
                   <button
                     className="live-page-btn-cart live-page-btn-outline"
                     style={styles.btnOutline}
-                    onClick={handleAddCart}
+                    onClick={handleAddCart(p.id)}
                   >장바구니</button>
                   <button className="live-page-btn-buy live-page-btn-filled" style={styles.btnFilled}>주문하기</button>
                 </div>
