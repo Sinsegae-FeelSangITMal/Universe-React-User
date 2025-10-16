@@ -16,32 +16,11 @@ import SubtitleDisplay from '../../components/subtitle/SubtitleDisplay';
 import { getCart, addCart } from '../../utils/CartApi';
 
 /* =========================
-   Quiet Logger (env-toggle + throttling)
+   Helpers
    ========================= */
-const VERBOSE = (import.meta.env.VITE_LOG_VERBOSE ?? 'false') === 'true';
-const VIDEO_DEBUG = false; // 비디오 이벤트/리사이즈 로그를 보고 싶을 때만 true
+const readyName = (rs) =>
+  ({ 0: 'HAVE_NOTHING', 1: 'HAVE_METADATA', 2: 'HAVE_CURRENT_DATA', 3: 'HAVE_FUTURE_DATA', 4: 'HAVE_ENOUGH_DATA' }[rs] ?? String(rs));
 
-const makeThrottled = (fn, intervalMs = 3000) => {
-  let last = 0;
-  return (...args) => {
-    const now = performance.now();
-    if (now - last >= intervalMs) {
-      last = now;
-      fn(...args);
-    }
-  };
-};
-const LOG = {
-  info: (...a) => { if (VERBOSE) console.log('[LIVE]', ...a); },
-  warn: (...a) => { if (VERBOSE) console.warn('[LIVE]', ...a); },
-  error: (...a) => { if (VERBOSE) console.error('[LIVE]', ...a); },
-  infoThrottled: makeThrottled((...a) => console.log('[LIVE]', ...a), 5000),
-  warnThrottled: makeThrottled((...a) => console.warn('[LIVE]', ...a), 5000),
-};
-
-/* =========================
-   Endpoints (게이트웨이 기준)
-   ========================= */
 const _resolveBase = (v, fallback = '') => {
   if (!v) return fallback;
   if (String(v).toLowerCase() === 'same-origin') return '';
@@ -55,19 +34,10 @@ const CHAT_API_BASE_URL = '/chatapi';
 const MAIN_API_URL = '/api';
 const CHAT_WS_URL = '/ws';
 
-LOG.info('ENV', {
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-  VITE_MEDIASOUP_HOST: import.meta.env.VITE_MEDIASOUP_HOST,
-  SERVER_URL,
-  SOCKET_PATH,
-  CHAT_API_BASE_URL,
-  CHAT_WS_URL,
-});
-
 const toGatewayUrl = (p) => {
   if (!p) return '';
   if (/^https?:\/\//i.test(p)) return p;
-  const base = import.meta.env.VITE_API_URL || '';
+  const base = import.meta.env.VITE_API_URL || '/api';
   return `${base}${p}`;
 };
 
@@ -109,12 +79,13 @@ export default function Merge() {
   const [subtitle, setSubtitle] = useState(null);
   const [selectedLang, setSelectedLang] = useState('ko');
   const [viewerCount, setViewerCount] = useState(0);
-  const [vodError, setVodError] = useState(false); // VOD 파일 접근 실패 시 표시
+  const [vodError, setVodError] = useState(false);
 
   const [streamInfo, setStreamInfo] = useState(null);
   const [promotion, setPromotion] = useState(null);
   const [productDetails, setProductDetails] = useState([]);
 
+  const [vodSrc, setVodSrc] = useState(null);
   const [cart, setCart] = useState(null);
 
   /* 최신 status ref */
@@ -129,52 +100,34 @@ export default function Merge() {
 
   // 유저 이름 색 팔레트 (5개)
   const NAME_COLORS = ['#1f77b4', '#2ca02c', '#d62728', '#ff7f0e', '#9467bd'];
-  // 유저별 → 색상 매핑을 보존(렌더 간 유지)
   const nameColorMapRef = useRef(new Map());
   const getNameColor = (msg) => {
-    if (msg.role === 'PARTNER') return '#3b4fff';         // PARTNER는 고정 보라
-    if (msg.type === 'admin') return '#3b4fff';           // 시스템은 파란색 유지
-
+    if (msg.role === 'PARTNER') return '#3b4fff';
+    if (msg.type === 'admin') return '#3b4fff';
     const key = msg.senderId || msg.nickname || '__anon';
     if (!nameColorMapRef.current.has(key)) {
-      const idx = nameColorMapRef.current.size % NAME_COLORS.length; // 5개 돌려가며 배정
+      const idx = nameColorMapRef.current.size % NAME_COLORS.length;
       nameColorMapRef.current.set(key, NAME_COLORS[idx]);
     }
     return nameColorMapRef.current.get(key);
   };
-
 
   // 장바구니 담기
   const handleAddCart = async (id) => {
     try {
       const res = await addCart(myUserId, id, 1);
       if (res.data.success) {
-        toast.success("장바구니에 담았습니다!");
-        // 장바구니 상태 최신화
-        getCart(myUserId).then(res => setCart(res.data?.data || []));
+        toast.success('장바구니에 담았습니다!');
+        getCart(myUserId).then((res) => setCart(res.data?.data || []));
       } else {
-        toast.error(res.data.message || "장바구니 담기 실패");
+        toast.error(res.data.message || '장바구니 담기 실패');
       }
     } catch (e) {
-      console.error("장바구니 추가 실패:", e.response);
-      toast.error(e.response?.data?.message || "오류가 발생했습니다.");
+      toast.error(e.response?.data?.message || '오류가 발생했습니다.');
     }
   };
 
-  // 상대 경로 → 게이트웨이(/api)로 보정
-  const toGatewayUrl = (p) => {
-    if (!p) return '';
-    if (/^https?:\/\//i.test(p)) return p;
-    const base = import.meta.env.VITE_API_URL || '/api';
-    return `${base}${p}`;
-  };
-
-
-  /* =========================
-     연계 상품 메인 이미지 경로 해석(즉시/지연 조회)
-     ========================= */
   const resolveMainImagePath = async (product) => {
-    // 1) product 객체에 직접 달려온 후보
     const direct =
       product?.mainImageUrl ||
       product?.mainImgUrl ||
@@ -182,7 +135,6 @@ export default function Merge() {
       product?.imageUrl;
     if (direct) return direct;
 
-    // 2) 내부 이미지 배열에서 MAIN 역할 찾기
     const imgs =
       product?.images ||
       product?.productImages ||
@@ -196,12 +148,10 @@ export default function Merge() {
     const embedded = main?.url || main?.piUrl || main?.PI_URL;
     if (embedded) return embedded;
 
-    // 3) 최후 수단: 단건 조회로 mainImageUrl 확보
     try {
       const res = await getProduct(product.id);
       const p = res?.data?.data || res?.data;
       if (!p) return null;
-
       const d =
         p.mainImageUrl ||
         (Array.isArray(p.detailImages)
@@ -211,7 +161,6 @@ export default function Merge() {
             )?.url || p.detailImages[0]?.url
           )
           : null);
-
       return d || null;
     } catch {
       return null;
@@ -222,52 +171,56 @@ export default function Merge() {
      VOD 전환 & 재생 컨트롤
      ========================= */
   const setVideoToVod = async (recordPath) => {
-    LOG.info('VOD▶ setVideoToVod', { recordPath });
     const videoEl = remoteVideoRef.current;
     if (!videoEl) return;
+
+    // mediasoup/소켓 정리
+    try {
+      if (recvTransportRef.current) {
+        recvTransportRef.current.close();
+        recvTransportRef.current = null;
+      }
+    } catch { }
+    try {
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners?.();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    } catch { }
 
     if (videoEl.srcObject) {
       try { videoEl.srcObject.getTracks?.().forEach((t) => t.stop?.()); } catch { }
       videoEl.srcObject = null;
     }
-    // 기본값 세팅
-    videoEl.crossOrigin = 'anonymous';
-    videoEl.controls = false;
+
+    try { videoEl.removeAttribute('crossorigin'); } catch { }
+    videoEl.controls = true;
     videoEl.muted = false;
     videoEl.playsInline = true;
 
-    // 1) 경로 자체가 없으면 바로 오류 표시
     const url = toGatewayUrl(recordPath || '');
     if (!recordPath) {
       setVodError(true);
       setIsVodPlaying(false);
       setIsStreamAvailable(false);
       setStreamStatus('vod');
-      LOG.warn('VOD✖ no record path');
       return;
     }
 
-    // 2) 사전 HEAD 체크 (CORS 허용 시)
-    try {
-      const head = await fetch(url, { method: 'HEAD' });
-      if (!head.ok) throw new Error(`HEAD ${head.status}`);
-    } catch (e) {
-      LOG.warn('VOD✖ HEAD check failed', e);
-      // HEAD 실패해도 바로 포기하지 않고, 비디오 onerror에서 한 번 더 확인
-    }
+    // 사전 접근성 체크(실패해도 진행)
+    try { await fetch(url, { method: 'HEAD' }); } catch { }
+    try { await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' } }); } catch { }
 
-    // 3) 소스 지정 + 강제 pause (절대 자동재생 금지)
-    videoEl.src = url;
-    try { videoEl.load(); } catch { }
+    // src 지정
+    setVodSrc(url);
     try { videoEl.pause(); } catch { }
     setVodError(false);
     setIsVodPlaying(false);
     setIsStreamAvailable(true);
-    setStreamStatus('vod'); // ← 이 시점 이후로는 statusRef도 vod가 되어 자동재생 로직이 전부 무시됨
-    LOG.info('STATUS vod (source set)');
-    // 4) 로드 실패 시 에러 표시
+    setStreamStatus('vod');
+
     const onErr = () => {
-      LOG.error('VOD✖ media error');
       setVodError(true);
       setIsVodPlaying(false);
       setIsStreamAvailable(false);
@@ -280,11 +233,15 @@ export default function Merge() {
     if (!v) return;
     try {
       v.muted = false;
-      await v.play();
+      const pr = v.play();
+      if (pr && pr.then) await pr;
       setIsVodPlaying(true);
-      LOG.info('VOD✔ play');
     } catch (e) {
-      LOG.error('VOD✖ play', e);
+      const errObj = v?.error ? { code: v.error.code } : null;
+      // 필요 최소한의 사용자 안내만 유지
+      // 디코드 불가/미지원 등은 서버 코덱/파일 포맷 확인 필요
+      // errObj는 내부 분석용으로 남겨둠(콘솔 미사용)
+      void errObj;
       toast.error('재생할 수 없습니다.');
     }
   };
@@ -292,45 +249,32 @@ export default function Merge() {
   const handleVodPause = () => {
     const v = remoteVideoRef.current;
     if (!v) return;
-    try { v.pause(); LOG.info('VOD⏸ pause'); } finally { setIsVodPlaying(false); }
+    try { v.pause(); } finally { setIsVodPlaying(false); }
   };
 
   /* =========================
-     초기 비디오 MediaStream 장착 + 이벤트 로그 (옵션)
+     초기 비디오 세팅 (라이브 모드만 MediaStream)
      ========================= */
   useEffect(() => {
     const v = remoteVideoRef.current;
     if (!v) return;
 
-    if (!(msRef.current instanceof MediaStream)) {
-      msRef.current = new MediaStream();
-    }
-    if (v.srcObject !== msRef.current) {
-      v.srcObject = msRef.current;
+    if (statusRef.current !== 'vod') {
+      if (!(msRef.current instanceof MediaStream)) {
+        msRef.current = new MediaStream();
+      }
+      if (v.srcObject !== msRef.current) {
+        v.srcObject = msRef.current;
+      }
     }
     v.muted = true;
     v.playsInline = true;
 
-    const logEv = (ev) => {
-      if (VERBOSE && VIDEO_DEBUG) LOG.info(`VIDEO ${ev.type}`, { readyState: v.readyState, src: v.src });
-    };
-
-    if (VERBOSE && VIDEO_DEBUG) {
-      ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'error']
-        .forEach((name) => v.addEventListener(name, logEv));
-    }
-
+    // 최소 이벤트만 유지(자동재생 킥)
     if (statusRef.current !== 'vod') {
       const p = v.play?.();
       if (p && p.catch) p.catch(() => { });
     }
-
-    return () => {
-      if (VERBOSE && VIDEO_DEBUG) {
-        ['loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough', 'play', 'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'error']
-          .forEach((name) => v.removeEventListener(name, logEv));
-      }
-    };
   }, []);
 
   /* =========================
@@ -338,7 +282,7 @@ export default function Merge() {
      ========================= */
   const tryPlay = (video) => {
     if (!video) return;
-    if (statusRef.current === 'vod') return; // VOD에서는 자동재생 금지
+    if (statusRef.current === 'vod') return;
     video.muted = true;
     video.playsInline = true;
     const p = video.play?.();
@@ -346,7 +290,10 @@ export default function Merge() {
   };
 
   const attachTrack = (track, kind) => {
-    LOG.info(`TRACK▶ attach ${kind}`, { id: track?.id, muted: track?.muted });
+    if (statusRef.current === 'vod') {
+      try { track.stop?.(); } catch { }
+      return;
+    }
     if (kind === 'video') attachVideoTrack(track);
     else if (kind === 'audio') attachAudioTrack(track);
   };
@@ -413,7 +360,6 @@ export default function Merge() {
 
     const p = video.play?.();
     if (p && p.catch) p.catch(() => { });
-    LOG.info('AUDIO✔ attached');
   };
 
   /* =========================
@@ -430,11 +376,9 @@ export default function Merge() {
      ========================= */
   useEffect(() => {
     const fetchData = async () => {
-      LOG.info('API▶ getStream', { liveId: String(liveId) });
       try {
         const streamResp = await getStream(liveId);
         const s = streamResp?.data?.data || streamResp?.data || {};
-
         const normalized = {
           id: s.id,
           title: s.title,
@@ -444,23 +388,20 @@ export default function Merge() {
           status: (s?.srStatus || s?.status || '').toString().toUpperCase(),
           record: s?.record || s?.srRecord,
         };
-        LOG.info('API✔ getStream', normalized);
         setStreamInfo(normalized);
 
         const raw = normalized.status;
         setServerEnded(raw === 'ENDED');
 
-        if (raw === 'ENDED' || raw === 'END' || raw === 'COMPLETED') {
-          if (normalized.record) await setVideoToVod(normalized.record);
-          else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (no record)'); }
+        if (raw === 'ENDED') {
+          // 종료 상태면 무조건 VOD 모드로 전환 (record 없으면 setVideoToVod가 에러 표시)
+          await setVideoToVod(normalized.record);
         } else if (raw === 'LIVE' || raw === 'WAITING') {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
-          LOG.info('STATUS init -> waiting');
         } else {
           setIsStreamAvailable(false);
           setStreamStatus('ended');
-          LOG.warn('STATUS ended (unknown raw)');
         }
 
         const promoId = s?.promotionId ?? s?.promotion_id ?? s?.PR_ID;
@@ -472,10 +413,8 @@ export default function Merge() {
           setPromotion(null);
         }
 
-        LOG.info('API▶ getStreamProductsByStream', { liveId: String(liveId) });
         const spResp = await getStreamProductsByStream(liveId);
         const spList = Array.isArray(spResp?.data?.data) ? spResp.data.data : [];
-        // 이미지 경로를 해석해 img 필드를 보장
         const products = await Promise.all(
           spList
             .filter((sp) => !!sp.product)
@@ -493,10 +432,7 @@ export default function Merge() {
             })
         );
         setProductDetails(products);
-        LOG.info('API✔ getStreamProductsByStream', { count: products.length });
-
-      } catch (err) {
-        LOG.error('API✖ getStream', err);
+      } catch {
         setStreamInfo((prev) => prev ?? { title: '', artistName: '' });
         setStreamStatus('ended');
       }
@@ -519,12 +455,9 @@ export default function Merge() {
       heartbeatOutgoing: 10000,
       reconnectDelay: 4000,
       onConnect: () => {
-        LOG.info('CHAT✔ connected');
-
         client.subscribe(TOPIC_SUBSCRIBE(liveId), (f) => {
           try {
             const body = JSON.parse(f.body);
-
             setChatList((prev) => ([
               ...prev,
               {
@@ -554,14 +487,13 @@ export default function Merge() {
               setIsMuted(true);
               setMuteSecondsLeft(30);
             }
-          } catch (e) {
+          } catch {
             toast.error(message.body);
           }
         });
       },
       onStompError: (frame) => {
         const msg = frame?.headers?.message || '';
-        LOG.error('CHAT✖ Broker error', msg, frame?.body);
         if (msg.includes('INVALID_TOKEN')) {
           try {
             client.deactivate().then(() => {
@@ -571,8 +503,6 @@ export default function Merge() {
           } catch { }
         }
       },
-      onWebSocketError: (evt) => LOG.error('CHAT✖ WebSocket error', evt),
-      onWebSocketClose: (evt) => LOG.warnThrottled('CHAT⚠ WebSocket closed', evt?.code, evt?.reason),
     });
 
     client.activate();
@@ -585,14 +515,14 @@ export default function Merge() {
   }, [liveId, accessToken, myUserId]);
 
   /* =========================
-   자막 STOMP (Authorization 포함)
+   자막 STOMP
    ========================= */
   useEffect(() => {
     if (!liveId) return;
+    if (serverEnded) return; // 종료된 스트림은 자막 구독 불필요
+    if (streamStatus === 'vod') return;
 
-    LOG.info('[Subtitle] Opening Web Socket...');
     const getAccessToken = () => useAuthStore.getState().accessToken;
-
     const sock = new SockJS('/ws-subtitle', null, { withCredentials: true });
     const subtitleClient = new StompClient({
       webSocketFactory: () => sock,
@@ -604,18 +534,14 @@ export default function Merge() {
         subtitleClient.subscribe(`/topic/subtitles/${liveId}`, (frame) => {
           try {
             const payload = JSON.parse(frame.body);
-            LOG.info('SUBTITLE rx', payload);
             setSubtitle(payload);
             if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
             subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
-          } catch (err) {
-            LOG.error('SUBTITLE parse✖', err);
-          }
+          } catch { }
         });
       },
       onStompError: (frame) => {
         const msg = frame?.headers?.message || '';
-        LOG.error('[Subtitle] Broker error', msg, frame?.body);
         if (msg.includes('INVALID_TOKEN')) {
           try {
             subtitleClient.deactivate().then(() => {
@@ -625,8 +551,6 @@ export default function Merge() {
           } catch { }
         }
       },
-      onWebSocketError: (evt) => LOG.error('[Subtitle] WebSocket error', evt),
-      onWebSocketClose: (evt) => LOG.warnThrottled('[Subtitle] WebSocket closed', evt?.code, evt?.reason),
     });
 
     subtitleClient.activate();
@@ -641,8 +565,6 @@ export default function Merge() {
     if (initOnceRef.current) return;
     initOnceRef.current = true;
 
-    LOG.info('BOOT', { liveId: String(liveId), serverEnded, streamStatus });
-
     const socket = io(SERVER_URL || undefined, {
       path: SOCKET_PATH,
       transports: ['websocket'],
@@ -656,93 +578,46 @@ export default function Merge() {
 
     socketRef.current = socket;
 
-    // 모든 이벤트 로깅 (ping/pong 제외) → 스로틀 + VERBOSE 조건
-    socket.onAny((event, ...args) => {
-      if (!VERBOSE) return;
-      if (event === 'ping' || event === 'pong') return;
-      LOG.infoThrottled(`SOCK rx ${event}`, ...(args?.length ? args : []));
-    });
-
     socket.on('connect', () => {
-      LOG.info('SOCK✔ connect', { id: socket.id, url: SERVER_URL || '(same-origin)', path: SOCKET_PATH });
       const joinPayload = { streamId: String(liveId), liveId: String(liveId) };
-      LOG.info('EMIT▶ join-live', joinPayload);
-      socket.emit('join-live', joinPayload, (ack) => {
-        LOG.info('ACK✔ join-live', ack);
-      });
+      socket.emit('join-live', joinPayload, () => { });
     });
 
-    socket.on('disconnect', (reason) => LOG.warnThrottled('SOCK⚠ disconnect', reason));
-    socket.on('connect_error', (e) => LOG.error('SOCK✖ connect_error', e?.message || e));
-    socket.io.on('reconnect_attempt', (n) => LOG.info('SOCK… reconnect_attempt', n));
-    socket.io.on('reconnect_error', (e) => LOG.warnThrottled('SOCK⚠ reconnect_error', e?.message || e));
-    socket.io.on('reconnect_failed', () => LOG.error('SOCK✖ reconnect_failed'));
-    socket.on('error', (e) => LOG.error('SOCK✖ error', e));
-    socket.on('viewer-count', (count) => { LOG.info('viewer-count', count); setViewerCount(count); });
-
-    // Subtitle proxy events over socket.io
-    const handleSubtitleEvent = (data) => {
-      try {
-        let payload = data;
-        if (typeof data === 'string') payload = { original: data };
-        if (payload.liveId && String(payload.liveId) !== String(liveId)) return;
-        LOG.info('SUBTITLE(socket.io) rx', payload);
-
-        const incoming = payload.subtitle || payload;
-        const normalized = typeof incoming === 'string' ? { original: incoming } : incoming;
-
-        if (normalized?.original) {
-          setSubtitle(normalized);
-          if (subtitleTimerRef.current) clearTimeout(subtitleTimerRef.current);
-          subtitleTimerRef.current = setTimeout(() => setSubtitle(null), 6000);
-        }
-      } catch (err) {
-        LOG.error('SUBTITLE(socket.io) parse✖', err);
-      }
-    };
-    socket.on('subtitle', handleSubtitleEvent);
-    socket.on('subtitle-update', handleSubtitleEvent);
+    socket.on('viewer-count', (count) => setViewerCount(count));
 
     // --- mediasoup setup ---
     const setupMediasoup = async () => {
       try {
-        LOG.info('MS▶ getRouterRtpCapabilities');
         const routerRtpCapabilities = await new Promise((r) =>
-          socket.emit('getRouterRtpCapabilities', (resp) => { LOG.info('ACK✔ getRouterRtpCapabilities', resp); r(resp); })
+          socket.emit('getRouterRtpCapabilities', (resp) => r(resp))
         );
 
         const device = new mediasoupClient.Device();
         await device.load({ routerRtpCapabilities });
         deviceRef.current = device;
-        LOG.info('MS✔ Device.load', { rtpCapabilities: device.rtpCapabilities });
 
-        LOG.info('MS▶ createWebRtcTransport', { sending: false });
         const transportParams = await new Promise((r) =>
-          socket.emit('createWebRtcTransport', { sending: false }, (resp) => { LOG.info('ACK✔ createWebRtcTransport', resp); r(resp); })
+          socket.emit('createWebRtcTransport', { sending: false }, (resp) => r(resp))
         );
 
         const transport = device.createRecvTransport(transportParams);
         recvTransportRef.current = transport;
-        LOG.info('MS✔ recvTransport created', { id: transport.id });
 
         transport.on('connect', ({ dtlsParameters }, callback, errback) => {
-          LOG.info('MS▶ connectTransport');
           socket.emit('connectTransport', { dtlsParameters }, (error) => {
-            if (error) { LOG.error('ACK✖ connectTransport', error); errback(new Error(error)); }
-            else { LOG.info('ACK✔ connectTransport'); callback(); }
+            if (error) errback(new Error(error));
+            else callback();
           });
         });
 
         const consumeKind = async (kind) => {
           try {
             const { rtpCapabilities } = deviceRef.current || {};
-            LOG.info(`MS▶ consume(${kind})`);
             const params = await new Promise((r) =>
-              socket.emit('consume', { rtpCapabilities, kind, streamId: String(liveId) }, (resp) => { LOG.info(`ACK✔ consume(${kind})`, resp); r(resp); })
+              socket.emit('consume', { rtpCapabilities, kind, streamId: String(liveId) }, (resp) => r(resp))
             );
 
             if (!params || params?.error) {
-              LOG.warn(`MS⚠ consume(${kind}) no-params`, params);
               if (!serverEnded && statusRef.current !== 'ended' && statusRef.current !== 'vod') {
                 setIsStreamAvailable(false);
                 setStreamStatus('waiting');
@@ -751,14 +626,13 @@ export default function Merge() {
             }
 
             const consumer = await recvTransportRef.current.consume(params);
-            LOG.info(`MS✔ consumer(${kind})`, { id: consumer.id, trackId: consumer.track?.id });
             const track = consumer.track;
 
             const attachNow = async () => {
               attachTrack(track, kind);
-              try { await consumer.resume(); LOG.info(`MS✔ resume(${kind})`); } catch (e) { LOG.warn(`MS⚠ resume(${kind})`, e); }
-              try { await consumer.requestKeyFrame?.(); LOG.info(`MS✔ keyframe(${kind})`); } catch { }
-              socket.emit('resume-consumer', { consumerId: consumer.id }, (ack) => LOG.info('ACK✔ resume-consumer', ack));
+              try { await consumer.resume(); } catch { }
+              try { await consumer.requestKeyFrame?.(); } catch { }
+              socket.emit('resume-consumer', { consumerId: consumer.id }, () => { });
             };
 
             if (track.muted) {
@@ -767,8 +641,7 @@ export default function Merge() {
               void attachNow();
             }
             return true;
-          } catch (err) {
-            LOG.error(`MS✖ consume(${kind})`, err);
+          } catch {
             return false;
           }
         };
@@ -779,33 +652,26 @@ export default function Merge() {
         if (!okV && !okA) {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
-          LOG.warn('STATUS waiting (no consumer ready)');
           socket.once('new-producer', async () => {
-            LOG.info('MS evt new-producer -> retry consume');
             const vv = await consumeKind('video');
             const aa = await consumeKind('audio');
             if (vv || aa) {
               setIsStreamAvailable(true);
               setStreamStatus('streaming');
-              LOG.info('STATUS streaming (after new-producer)');
               tryPlay(remoteVideoRef.current);
             }
           });
         } else {
           setIsStreamAvailable(true);
           setStreamStatus('streaming');
-          LOG.info('STATUS streaming (consumer ready)');
           tryPlay(remoteVideoRef.current);
         }
-      } catch (error) {
-        LOG.error('MS✖ setup', error);
-      }
+      } catch { }
     };
 
     socket.on('connect', setupMediasoup);
 
     socket.on('producer-closed', async () => {
-      LOG.warn('MS evt producer-closed -> teardown + recheck');
       setStreamStatus('ended');
       setIsStreamAvailable(false);
 
@@ -826,24 +692,18 @@ export default function Merge() {
         setServerEnded(raw === 'ENDED');
 
         if (raw === 'ENDED') {
-          if (record) await setVideoToVod(record);
-          else { setIsStreamAvailable(false); setStreamStatus('ended'); LOG.info('STATUS ended (producer closed, no record)'); }
+          await setVideoToVod(record); // record 없으면 내부에서 에러 상태 처리
         } else if (raw === 'LIVE' || raw === 'WAITING') {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
-          LOG.info('STATUS waiting (producer closed, still live/waiting)');
         } else {
           setIsStreamAvailable(false);
           setStreamStatus('waiting');
-          LOG.warn('STATUS waiting (producer closed, unknown raw)');
         }
-      } catch (e) {
-        LOG.warn('MS recheck after producer-closed✖', e);
-      }
+      } catch { }
     });
 
     return () => {
-      LOG.info('CLEANUP', 'disconnect socket & close transport');
       try { socket.disconnect(); } catch { }
       try { recvTransportRef.current?.close(); } catch { }
 
@@ -892,13 +752,8 @@ export default function Merge() {
             role: m.role ?? 'USER',
             createdAt: m.createdAt,
           })));
-          LOG.info('CHAT history✔', { count: history.length });
-        } else {
-          LOG.warn('CHAT history⚠ non-200', res.status);
         }
-      } catch (e) {
-        LOG.error('CHAT history✖', e);
-      }
+      } catch { }
     };
     fetchRecent();
   }, [liveId]);
@@ -915,10 +770,7 @@ export default function Merge() {
           if (!response.ok) return;
           const data = await response.json();
           if (data.isBanned) setIsBanned(true);
-          LOG.info('CHAT moderation status', data);
-        } catch (error) {
-          LOG.error('Ban status check✖', error);
-        }
+        } catch { }
       };
       checkBanStatus();
     }
@@ -949,7 +801,6 @@ export default function Merge() {
   const handleChatSend = () => {
     const text = chatInput.trim();
     if (!text) return;
-
     if (!stompRef.current?.connected) {
       toast.error('채팅 서버와 연결되지 않았습니다.');
       return;
@@ -978,6 +829,23 @@ export default function Merge() {
       </div>
     );
   }
+
+  const formatKoreanDate = (isoString) => {
+    if (!isoString) return null;
+    const d = new Date(isoString);
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const displayTitle = (() => {
+    if (isVodMode) {
+      const dateText = formatKoreanDate(streamInfo?.endTime);
+      const baseTitle = streamInfo?.title || '라이브';
+      return dateText
+        ? `[${dateText} 라이브 다시보기] ${baseTitle}`
+        : `[라이브 다시보기] ${baseTitle}`;
+    }
+    return streamInfo?.title || '방송 정보 로딩 중...';
+  })();
 
   const styles = {
     section: { background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: 20, marginTop: 30 },
@@ -1012,7 +880,7 @@ export default function Merge() {
         <h2 className="live-page-artist">
           {streamInfo?.artistName || '아티스트'} <span style={{ color: '#7c4dff' }}>LIVE</span>
         </h2>
-        <p className="live-page-desc">{streamInfo?.title || '방송 정보 로딩 중...'}</p>
+        <p className="live-page-desc">{displayTitle}</p>
       </div>
 
       {/* 영상 + 채팅 */}
@@ -1029,9 +897,10 @@ export default function Merge() {
           ) : (
             <video
               ref={remoteVideoRef}
+              src={isVodMode ? vodSrc : undefined}
               autoPlay={streamStatus !== 'vod'}
               muted={streamStatus !== 'vod'}
-              controls={streamStatus === 'vod' ? false : undefined}
+              controls={streamStatus === 'vod'}
               playsInline
               className="live-page-video"
               onLoadedMetadata={(e) => { if (statusRef.current !== 'vod') e.currentTarget.play?.().catch(() => { }); }}
@@ -1066,7 +935,7 @@ export default function Merge() {
           {!isStreamAvailable && streamStatus === 'waiting' && !isVodMode && !serverEnded && (
             <p className="live-page-waiting">방송 시작을 기다리는 중...</p>
           )}
-          {serverEnded && !isVodMode && (
+          {streamStatus === 'ended' && (
             <p className="live-page-waiting">방송이 종료되었습니다.</p>
           )}
 
@@ -1090,7 +959,6 @@ export default function Merge() {
           <div className="live-page-chat-title">실시간 채팅</div>
           <div className="live-page-chat-messages" ref={chatMessagesRef}>
             {chatList.map((msg) => {
-              console.log(msg);
               const isMine = myUserId && msg.senderId === myUserId && msg.type !== 'admin';
               const name =
                 msg.type === 'admin'
@@ -1118,7 +986,7 @@ export default function Merge() {
                       className="live-page-chat-sender"
                       style={{
                         color: getNameColor(msg),
-                        fontWeight: msg.role === 'PARTNER' ? 1000 : 600, // 🔹 PARTNER면 더 굵게
+                        fontWeight: msg.role === 'PARTNER' ? 1000 : 600,
                       }}
                     >
                       {displayName} :
@@ -1126,14 +994,13 @@ export default function Merge() {
                     <span
                       className="live-page-chat-text"
                       style={{
-                        fontWeight: msg.role === 'PARTNER' ? 1000 : 400, // 🔹 PARTNER면 메시지도 굵게
+                        fontWeight: msg.role === 'PARTNER' ? 1000 : 400,
                       }}
                     >
                       {msg.text}
                     </span>
                   </div>
-              
-                  {/* 시간은 항상 말풍선 오른쪽에 표기 */}
+
                   <span
                     style={{
                       alignSelf: 'flex-end',
@@ -1145,7 +1012,7 @@ export default function Merge() {
                     {time}
                   </span>
                 </div>
-              );              
+              );
             })}
           </div>
 
@@ -1165,47 +1032,49 @@ export default function Merge() {
         </div>
       </div>
 
-      {/* 프로모션 */}
-      <div style={styles.section}>
-        <h3 style={styles.title}>🎁 프로모션 상품</h3>
-        <div style={styles.promoGrid}>
-          {promotion ? (
-            <div
-              style={styles.card}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = styles.cardHover.transform; e.currentTarget.style.boxShadow = styles.cardHover.boxShadow; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
-            >
-              <div style={{ ...styles.imgWrap, ...styles.promoImgWrap }}>
-                <img src="/assets/img/dummyImg/bts_promotion1.jpg" alt={promotion.name} style={styles.img} />
-              </div>
-              <div style={styles.body}>
-                <div style={styles.name}>{promotion.name}</div>
-                <div style={styles.desc}>{promotion.description || '등록된 설명이 없습니다.'}</div>
-                <div style={styles.metaRow}>
-                  {promotion.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
+      {/* 프로모션 (VOD 모드에서는 표시 안 함) */}
+      {!isVodMode && (
+        <div style={styles.section}>
+          <h3 style={styles.title}>🎁 프로모션 상품</h3>
+          <div style={styles.promoGrid}>
+            {promotion ? (
+              <div
+                style={styles.card}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = styles.cardHover.transform; e.currentTarget.style.boxShadow = styles.cardHover.boxShadow; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+              >
+                <div style={{ ...styles.imgWrap, ...styles.promoImgWrap }}>
+                  <img src="/assets/img/dummyImg/bts_promotion1.jpg" alt={promotion.name} style={styles.img} />
                 </div>
-                {promotion.coupon && (
-                  <div style={{ ...styles.metaRow, marginTop: 6 }}>
-                    <span style={{ fontSize: 13, color: '#444' }}>쿠폰 코드</span>
-                    <strong style={{ fontSize: 14, color: '#111' }}>{promotion.coupon}</strong>
+                <div style={styles.body}>
+                  <div style={styles.name}>{promotion.name}</div>
+                  <div style={styles.desc}>{promotion.description || '등록된 설명이 없습니다.'}</div>
+                  <div style={styles.metaRow}>
+                    {promotion.fanOnly && <span style={styles.badge}>팬클럽 전용</span>}
                   </div>
-                )}
+                  {promotion.coupon && (
+                    <div style={{ ...styles.metaRow, marginTop: 6 }}>
+                      <span style={{ fontSize: 13, color: '#444' }}>쿠폰 코드</span>
+                      <strong style={{ fontSize: 14, color: '#111' }}>{promotion.coupon}</strong>
+                    </div>
+                  )}
+                </div>
+                <div style={styles.actions}>
+                  <button style={styles.btnOutline}>자세히 보기</button>
+                  <button
+                    style={styles.btnFilled}
+                    onClick={() => handleAddCart(promotion.id)}
+                  >장바구니</button>
+                </div>
               </div>
-              <div style={styles.actions}>
-                <button style={styles.btnOutline}>자세히 보기</button>
-                <button
-                  style={styles.btnFilled}
-                  onClick={() => handleAddCart(promotion.id)}
-                >장바구니</button>
+            ) : (
+              <div style={{ padding: 30, textAlign: 'center', color: '#777' }}>
+                등록된 프로모션이 없습니다.
               </div>
-            </div>
-          ) : (
-            <div style={{ padding: 30, textAlign: 'center', color: '#777' }}>
-              등록된 프로모션이 없습니다.
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 라이브 상품 목록 */}
       <div style={styles.section}>
