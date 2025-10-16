@@ -1099,7 +1099,7 @@ export default function Merge() {
                     ? (msg.nickname || sender)
                     : (msg.nickname || '익명');
               const time = formatTime(msg.createdAt);
-              const displayName = msg.role === 'PARTNER' ? 'HIVE' : name;
+              const displayName = msg.role === 'PARTNER' ? 'HYBE' : name;
 
               return (
                 <div
